@@ -138,6 +138,7 @@
     /**
      * Parse CV text into ATS-friendly structured sections
      * NO bullets (•), uses clean dashes (-) for lists
+     * CRITICAL: Includes TECHNICAL PROFICIENCIES section for PDF = Preview match
      */
     parseCVSectionsATS(cvText) {
       if (!cvText) return [];
@@ -157,7 +158,8 @@
         'CERTIFICATIONS',
         'ACHIEVEMENTS',
         'PROJECTS',
-        'AWARDS'
+        'AWARDS',
+        'TECHNICAL PROFICIENCIES' // CRITICAL: Include this section in PDF
       ];
 
       const lines = cvText.split('\n');
