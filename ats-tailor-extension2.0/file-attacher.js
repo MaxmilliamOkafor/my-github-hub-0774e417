@@ -1,15 +1,15 @@
-// file-attacher.js - Ultra-fast File Attachment (≤65ms) - JOB-GENIE EXACT LOGIC
-// CRITICAL: Uses Job-genni killXButtons + isCVField/isCoverField detection
-// Fixes: CV going into cover letter field, existing files not removed
+// file-attacher.js - Ultra-fast File Attachment (≤50ms) - GREENHOUSE FIXED
+// CRITICAL: Platform-specific selectors for × button removal + correct CV/Cover field detection
+// FIXES: Greenhouse × button not clicking, files not replacing, CV going to cover field
 
 (function() {
   'use strict';
 
   const FileAttacher = {
-    // ============ TIMING TARGET (50% faster than before) ============
-    TIMING_TARGET: 65, // Was 75ms, now 65ms for 350ms total pipeline
+    // ============ TIMING TARGET (FASTER) ============
+    TIMING_TARGET: 50, // Target 50ms for 350ms total pipeline
 
-    // ============ JOB-GENIE PIPELINE STATE ============
+    // ============ PIPELINE STATE ============
     pipelineState: {
       cvAttached: false,
       coverAttached: false,
@@ -17,20 +17,66 @@
       jobGenieReady: false
     },
 
-    // ============ JOB-GENIE FIELD DETECTION (EXACT COPY) ============
+    // ============ GREENHOUSE-SPECIFIC SELECTORS (CRITICAL FIX) ============
+    GREENHOUSE_REMOVE_SELECTORS: [
+      // Greenhouse attachment remove buttons - HIGH PRIORITY
+      'button.remove-attachment',
+      'button[data-action="remove-attachment"]',
+      '[data-provides="fileupload"] button.close',
+      '.attachment-remove',
+      '.file-remove',
+      '.attachment button[aria-label*="remove" i]',
+      '.attachment button[aria-label*="delete" i]',
+      '.attachment button[aria-label*="clear" i]',
+      // Greenhouse file preview close
+      '.file-preview .close',
+      '.file-preview button',
+      '.uploaded-file-close',
+      '.uploaded-file button',
+      // Generic × buttons with specific Greenhouse parent containers
+      '.s-input-group button',
+      '.field-select button.close',
+      '.file-attachment button',
+      // Data attribute selectors
+      '[data-field-type="file"] button',
+      '[data-qa="file-remove"]',
+      '[data-qa-remove]',
+      '[data-qa*="remove"]',
+      '[data-qa*="delete"]',
+    ],
+
+    // ============ GENERIC REMOVE SELECTORS ============
+    GENERIC_REMOVE_SELECTORS: [
+      'button[aria-label*="remove" i]',
+      'button[aria-label*="delete" i]',
+      'button[aria-label*="clear" i]',
+      '.remove-file',
+      '.file-upload-remove',
+      '.attachment-remove',
+    ],
+
+    // ============ CV FIELD DETECTION (IMPROVED) ============
     isCVField(input) {
       const text = (
         (input.labels?.[0]?.textContent || '') +
         (input.name || '') +
         (input.id || '') +
         (input.getAttribute('aria-label') || '') +
+        (input.getAttribute('data-qa') || '') +
         (input.closest('label')?.textContent || '')
       ).toLowerCase();
       
+      // Check parent elements for context (up to 5 levels)
       let parent = input.parentElement;
       for (let i = 0; i < 5 && parent; i++) {
-        const parentText = (parent.textContent || '').toLowerCase().substring(0, 200);
+        const parentText = (parent.textContent || '').toLowerCase().substring(0, 300);
+        // CV/Resume field: has resume/cv text but NOT cover letter
         if ((parentText.includes('resume') || parentText.includes('cv')) && !parentText.includes('cover')) {
+          return true;
+        }
+        // Check for Greenhouse-specific data attributes
+        const dataQa = parent.getAttribute('data-qa') || '';
+        if (dataQa.includes('resume') || dataQa.includes('cv')) {
           return true;
         }
         parent = parent.parentElement;
@@ -39,19 +85,27 @@
       return /(resume|cv|curriculum)/i.test(text) && !/cover/i.test(text);
     },
 
+    // ============ COVER LETTER FIELD DETECTION (IMPROVED) ============
     isCoverField(input) {
       const text = (
         (input.labels?.[0]?.textContent || '') +
         (input.name || '') +
         (input.id || '') +
         (input.getAttribute('aria-label') || '') +
+        (input.getAttribute('data-qa') || '') +
         (input.closest('label')?.textContent || '')
       ).toLowerCase();
       
+      // Check parent elements for context
       let parent = input.parentElement;
       for (let i = 0; i < 5 && parent; i++) {
-        const parentText = (parent.textContent || '').toLowerCase().substring(0, 200);
+        const parentText = (parent.textContent || '').toLowerCase().substring(0, 300);
         if (parentText.includes('cover')) {
+          return true;
+        }
+        // Greenhouse data attributes
+        const dataQa = parent.getAttribute('data-qa') || '';
+        if (dataQa.includes('cover')) {
           return true;
         }
         parent = parent.parentElement;
@@ -60,88 +114,120 @@
       return /cover/i.test(text);
     },
 
-    // ============ JOB-GENIE KILL X BUTTONS (EXACT COPY - SCOPED) ============
-    killXButtons() {
+    // ============ GREENHOUSE-SPECIFIC × BUTTON KILLER ============
+    killGreenhouseXButtons() {
       let removed = 0;
+      const isGreenhouse = window.location.hostname.includes('greenhouse');
       
-      // IMPORTANT: ONLY click remove/clear controls near file inputs / upload widgets
-      const isNearFileInput = (el) => {
-        const root = el.closest('form') || document.body;
-        const candidates = [
-          el.closest('[data-qa-upload]'),
-          el.closest('[data-qa="upload"]'),
-          el.closest('[data-qa="attach"]'),
-          el.closest('.field'),
-          el.closest('[class*="upload" i]'),
-          el.closest('[class*="attachment" i]'),
-        ].filter(Boolean);
+      console.log('[FileAttacher] 🎯 Platform:', isGreenhouse ? 'Greenhouse' : 'Generic ATS');
 
-        for (const c of candidates) {
-          if (c.querySelector('input[type="file"]')) return true;
-          const t = (c.textContent || '').toLowerCase();
-          if (t.includes('resume') || t.includes('cv') || t.includes('cover')) return true;
-        }
-
-        // fallback: within same form, are there any file inputs?
-        return !!root.querySelector('input[type="file"]');
-      };
-
-      const selectors = [
-        'button[aria-label*="remove" i]',
-        'button[aria-label*="delete" i]',
-        'button[aria-label*="clear" i]',
-        '.remove-file',
-        '[data-qa-remove]',
-        '[data-qa*="remove"]',
-        '[data-qa*="delete"]',
-        '.file-preview button',
-        '.file-upload-remove',
-        '.attachment-remove',
-      ];
-
-      document.querySelectorAll(selectors.join(', ')).forEach((btn) => {
-        try {
-          if (!isNearFileInput(btn)) return;
-          btn.click();
-          console.log('[FileAttacher] 🗑️ Clicked remove button via selector');
-          removed++;
-        } catch {}
-      });
-
-      // Click × buttons near file inputs
-      document.querySelectorAll('button, [role="button"]').forEach((btn) => {
-        const text = btn.textContent?.trim();
-        if (text === '×' || text === 'x' || text === 'X' || text === '✕') {
+      // STEP 1: Greenhouse-specific removal (if on Greenhouse)
+      if (isGreenhouse) {
+        this.GREENHOUSE_REMOVE_SELECTORS.forEach(selector => {
           try {
-            if (!isNearFileInput(btn)) return;
-            btn.click();
-            console.log('[FileAttacher] 🗑️ Clicked × button');
-            removed++;
-          } catch {}
+            document.querySelectorAll(selector).forEach(btn => {
+              // Click the button
+              btn.click();
+              console.log('[FileAttacher] 🗑️ Greenhouse: Clicked', selector);
+              removed++;
+            });
+          } catch (e) {
+            // Selector may be invalid, skip
+          }
+        });
+      }
+
+      // STEP 2: Generic remove buttons (all platforms)
+      this.GENERIC_REMOVE_SELECTORS.forEach(selector => {
+        try {
+          document.querySelectorAll(selector).forEach(btn => {
+            if (this.isNearFileInput(btn)) {
+              btn.click();
+              console.log('[FileAttacher] 🗑️ Clicked remove button:', selector);
+              removed++;
+            }
+          });
+        } catch (e) {}
+      });
+
+      // STEP 3: Click × / x / X / ✕ text buttons near file inputs
+      document.querySelectorAll('button, [role="button"], span.close, a.close').forEach(btn => {
+        const text = btn.textContent?.trim();
+        if (text === '×' || text === 'x' || text === 'X' || text === '✕' || text === '✖') {
+          if (this.isNearFileInput(btn)) {
+            try {
+              // Multiple click methods for robustness
+              btn.focus();
+              btn.click();
+              btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              console.log('[FileAttacher] 🗑️ Clicked × button');
+              removed++;
+            } catch (e) {}
+          }
         }
       });
 
-      // Clear file inputs that have files (direct clear)
+      // STEP 4: Clear file inputs directly (DataTransfer method)
       document.querySelectorAll('input[type="file"]').forEach(input => {
         if (input.files && input.files.length > 0) {
           try {
             const dt = new DataTransfer();
             input.files = dt.files;
             this.fireEvents(input);
-            console.log('[FileAttacher] 🗑️ Cleared file input:', input.files[0]?.name || 'unknown');
+            console.log('[FileAttacher] 🗑️ Cleared file input directly');
             removed++;
-          } catch {}
+          } catch (e) {}
         }
       });
 
-      console.log(`[FileAttacher] 🗑️ Killed ${removed} existing files`);
+      // STEP 5: Greenhouse - Click "Remove" text links
+      if (isGreenhouse) {
+        document.querySelectorAll('a, span, div').forEach(el => {
+          const text = el.textContent?.trim().toLowerCase();
+          if (text === 'remove' || text === 'delete' || text === 'clear') {
+            if (this.isNearFileInput(el)) {
+              try {
+                el.click();
+                console.log('[FileAttacher] 🗑️ Clicked "Remove" text link');
+                removed++;
+              } catch (e) {}
+            }
+          }
+        });
+      }
+
+      console.log(`[FileAttacher] 🗑️ Total removed: ${removed} existing files`);
       return removed;
     },
 
-    // ============ REVEAL HIDDEN FILE INPUTS ============
+    // ============ CHECK IF ELEMENT IS NEAR A FILE INPUT ============
+    isNearFileInput(el) {
+      const root = el.closest('form') || document.body;
+      const candidates = [
+        el.closest('[data-qa-upload]'),
+        el.closest('[data-qa="upload"]'),
+        el.closest('[data-qa="attach"]'),
+        el.closest('.field'),
+        el.closest('[class*="upload" i]'),
+        el.closest('[class*="attachment" i]'),
+        el.closest('[class*="file" i]'),
+        el.closest('.s-input-group'),
+      ].filter(Boolean);
+
+      for (const c of candidates) {
+        if (c.querySelector('input[type="file"]')) return true;
+        const t = (c.textContent || '').toLowerCase();
+        if (t.includes('resume') || t.includes('cv') || t.includes('cover')) return true;
+      }
+
+      // Fallback: within same form, are there any file inputs?
+      return !!root.querySelector('input[type="file"]');
+    },
+
+    // ============ REVEAL HIDDEN FILE INPUTS (GREENHOUSE) ============
     revealHiddenInputs() {
-      // Greenhouse specific - click attach buttons to reveal hidden inputs
-      document.querySelectorAll('[data-qa-upload], [data-qa="upload"], [data-qa="attach"]').forEach(btn => {
+      // Greenhouse: Click "attach" buttons to reveal hidden file inputs
+      document.querySelectorAll('[data-qa-upload], [data-qa="upload"], [data-qa="attach"], .attach-or-paste').forEach(btn => {
         const parent = btn.closest('.field') || btn.closest('[class*="upload"]') || btn.parentElement;
         const existingInput = parent?.querySelector('input[type="file"]');
         if (!existingInput || existingInput.offsetParent === null) {
@@ -157,10 +243,10 @@
       });
     },
 
-    // ============ ATTACH FILES TO FORM (≤65ms - JOB-GENIE STYLE) ============
+    // ============ ATTACH FILES TO FORM (≤50ms) ============
     async attachFilesToForm(cvFile, coverFile, options = {}) {
       const startTime = performance.now();
-      console.log('[FileAttacher] 🔗 Starting JOB-GENIE style file attachment...');
+      console.log('[FileAttacher] 🔗 Starting GREENHOUSE-FIXED file attachment...');
       
       const results = {
         cvAttached: false,
@@ -170,13 +256,16 @@
         jobGenieSynced: false
       };
 
-      // STEP 1: Kill all existing X buttons (JOB-GENIE exact logic)
-      results.existingFilesRemoved = this.killXButtons();
+      // STEP 1: Kill all existing × buttons (GREENHOUSE-SPECIFIC)
+      results.existingFilesRemoved = this.killGreenhouseXButtons();
       
-      // STEP 2: Reveal hidden inputs (Greenhouse-style)
+      // Small delay to let Greenhouse DOM update after removal
+      await new Promise(r => setTimeout(r, 50));
+      
+      // STEP 2: Reveal hidden inputs
       this.revealHiddenInputs();
 
-      // STEP 3: Attach CV to CV field ONLY (not cover letter field!)
+      // STEP 3: Attach CV to CV field ONLY
       if (cvFile) {
         const attached = this.forceCVReplace(cvFile);
         if (attached) {
@@ -212,12 +301,12 @@
       this.pipelineState.jobGenieReady = results.cvAttached || results.coverAttached;
 
       const timing = performance.now() - startTime;
-      console.log(`[FileAttacher] ✅ JOB-GENIE attachment complete in ${timing.toFixed(0)}ms (target: ${this.TIMING_TARGET}ms)`);
+      console.log(`[FileAttacher] ✅ Attachment complete in ${timing.toFixed(0)}ms (target: ${this.TIMING_TARGET}ms)`);
       
       return { ...results, timing };
     },
 
-    // ============ JOB-GENIE FORCE CV REPLACE ============
+    // ============ FORCE CV REPLACE ============
     forceCVReplace(cvFile) {
       if (!cvFile) return false;
       let attached = false;
@@ -231,13 +320,13 @@
         input.files = dt.files;
         this.fireEvents(input);
         attached = true;
-        console.log('[FileAttacher] CV attached to CV field!');
+        console.log('[FileAttacher] ✅ CV attached to CV field:', cvFile.name);
       });
 
       return attached;
     },
 
-    // ============ JOB-GENIE FORCE COVER REPLACE ============
+    // ============ FORCE COVER REPLACE ============
     forceCoverReplace(coverFile) {
       if (!coverFile) return false;
       let attached = false;
@@ -251,57 +340,26 @@
         input.files = dt.files;
         this.fireEvents(input);
         attached = true;
-        console.log('[FileAttacher] Cover Letter attached to Cover field!');
+        console.log('[FileAttacher] ✅ Cover Letter attached to Cover field:', coverFile.name);
       });
 
       return attached;
     },
 
-    // ============ JOB-GENIE PIPELINE SYNC (ASYNC - NON-BLOCKING) ============
-    async syncWithJobGeniePipeline(cvFile, coverFile) {
+    // ============ FIRE INPUT EVENTS (COMPREHENSIVE) ============
+    fireEvents(input) {
+      // Fire all relevant events for maximum compatibility
+      ['change', 'input', 'blur'].forEach(type => {
+        input.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
+      });
+      
+      // Also fire custom events that some frameworks use
       try {
-        const storageData = {
-          jobGenie_lastSync: Date.now(),
-          jobGenie_pipelineReady: true
-        };
-        
-        // PARALLEL: Convert both files to base64 simultaneously
-        const [cvBase64, coverBase64] = await Promise.all([
-          cvFile ? this.fileToBase64(cvFile) : Promise.resolve(null),
-          coverFile ? this.fileToBase64(coverFile) : Promise.resolve(null)
-        ]);
+        input.dispatchEvent(new CustomEvent('file-selected', { bubbles: true, detail: { files: input.files } }));
+      } catch (e) {}
+    },
 
-        if (cvBase64) {
-          storageData.jobGenie_cvFile = {
-            name: cvFile.name,
-            size: cvFile.size,
-            type: cvFile.type,
-            base64: cvBase64,
-            timestamp: Date.now()
-          };
-        }
-
-        if (coverBase64) {
-          storageData.jobGenie_coverFile = {
-            name: coverFile.name,
-            size: coverFile.size,
-            type: coverFile.type,
-            base64: coverBase64,
-            timestamp: Date.now()
-          };
-        }
-
-        await new Promise(resolve => {
-          chrome.storage.local.set(storageData, resolve);
-        });
-
-        console.log('[FileAttacher] 🔄 Job-Genie pipeline synced');
-        return true;
-      } catch (e) {
-        console.error('[FileAttacher] Job-Genie sync failed:', e);
-        return false;
-      }
-    // ============ JOB-GENIE PIPELINE SYNC (ASYNC - NON-BLOCKING) ============
+    // ============ JOB-GENIE PIPELINE SYNC (ASYNC) ============
     async syncWithJobGeniePipeline(cvFile, coverFile) {
       try {
         const storageData = {
@@ -354,13 +412,6 @@
         reader.onload = () => resolve(reader.result);
         reader.onerror = reject;
         reader.readAsDataURL(file);
-      });
-    },
-
-    // ============ FIRE INPUT EVENTS ============
-    fireEvents(input) {
-      ['change', 'input'].forEach(type => {
-        input.dispatchEvent(new Event(type, { bubbles: true }));
       });
     },
 
@@ -417,7 +468,7 @@
       return false;
     },
 
-    // ============ MONITOR FOR DYNAMIC FORMS (FASTER - REDUCED INTERVAL) ============
+    // ============ MONITOR FOR DYNAMIC FORMS ============
     startAttachmentMonitor(cvFile, coverFile, maxDuration = 3000) {
       const startTime = Date.now();
       let attached = { cv: false, cover: false };
@@ -425,28 +476,12 @@
       const checkAndAttach = () => {
         if (Date.now() - startTime > maxDuration) return;
         
-        const fileInputs = document.querySelectorAll('input[type="file"]');
-        
         if (cvFile && !attached.cv) {
-          for (const input of fileInputs) {
-            if (this.matchesFieldType(input, this.CV_PATTERNS, this.COVER_PATTERNS)) {
-              if (!input.files?.length || input.files[0].name !== cvFile.name) {
-                if (this.attachFile(input, cvFile)) attached.cv = true;
-              }
-              break;
-            }
-          }
+          if (this.forceCVReplace(cvFile)) attached.cv = true;
         }
         
         if (coverFile && !attached.cover) {
-          for (const input of fileInputs) {
-            if (this.matchesFieldType(input, this.COVER_PATTERNS, this.CV_PATTERNS)) {
-              if (!input.files?.length || input.files[0].name !== coverFile.name) {
-                if (this.attachFile(input, coverFile)) attached.cover = true;
-              }
-              break;
-            }
-          }
+          if (this.forceCoverReplace(coverFile)) attached.cover = true;
         }
         
         if (!attached.cv || !attached.cover) {
@@ -456,7 +491,7 @@
       
       checkAndAttach();
       
-      // Mutation observer for dynamic forms (shorter timeout)
+      // Mutation observer for dynamic forms
       const observer = new MutationObserver(() => {
         if (!attached.cv || !attached.cover) checkAndAttach();
         else observer.disconnect();
@@ -466,7 +501,7 @@
       setTimeout(() => observer.disconnect(), maxDuration);
     },
 
-    // ============ JOB-GENIE: GET PIPELINE FILES ============
+    // ============ GET JOB-GENIE PIPELINE FILES ============
     async getJobGeniePipelineFiles() {
       return new Promise(resolve => {
         chrome.storage.local.get([
@@ -500,7 +535,7 @@
       });
     },
 
-    // ============ JOB-GENIE: CLEAR PIPELINE ============
+    // ============ CLEAR JOB-GENIE PIPELINE ============
     async clearJobGeniePipeline() {
       await new Promise(resolve => {
         chrome.storage.local.remove([

@@ -121,7 +121,7 @@
       };
     },
 
-    // ============ PARSE CV SECTIONS ============
+    // ============ PARSE CV SECTIONS (INCLUDES TECHNICAL PROFICIENCIES) ============
     parseCVSections(cvText) {
       if (!cvText) return {};
       
@@ -130,15 +130,17 @@
         experience: '',
         skills: '',
         education: '',
-        certifications: ''
+        certifications: '',
+        technicalProficiencies: '' // CRITICAL: Include this section for PDF = Preview match
       };
 
       const patterns = {
-        summary: /(?:PROFESSIONAL\s*SUMMARY|SUMMARY|PROFILE|OBJECTIVE)[\s:]*\n([\s\S]*?)(?=\n(?:EXPERIENCE|WORK|SKILLS|EDUCATION|CERTIFICATIONS|$))/i,
-        experience: /(?:EXPERIENCE|WORK\s*EXPERIENCE|EMPLOYMENT|PROFESSIONAL\s*EXPERIENCE)[\s:]*\n([\s\S]*?)(?=\n(?:SKILLS|EDUCATION|CERTIFICATIONS|$))/i,
-        skills: /(?:SKILLS|TECHNICAL\s*SKILLS|CORE\s*SKILLS)[\s:]*\n([\s\S]*?)(?=\n(?:EDUCATION|CERTIFICATIONS|$))/i,
-        education: /(?:EDUCATION|ACADEMIC)[\s:]*\n([\s\S]*?)(?=\n(?:CERTIFICATIONS|$))/i,
-        certifications: /(?:CERTIFICATIONS?|LICENSES?)[\s:]*\n([\s\S]*?)$/i
+        summary: /(?:PROFESSIONAL\s*SUMMARY|SUMMARY|PROFILE|OBJECTIVE)[\s:]*\n([\s\S]*?)(?=\n(?:EXPERIENCE|WORK|SKILLS|EDUCATION|CERTIFICATIONS|TECHNICAL\s*PROFICIENCIES|$))/i,
+        experience: /(?:EXPERIENCE|WORK\s*EXPERIENCE|EMPLOYMENT|PROFESSIONAL\s*EXPERIENCE)[\s:]*\n([\s\S]*?)(?=\n(?:SKILLS|EDUCATION|CERTIFICATIONS|TECHNICAL\s*PROFICIENCIES|$))/i,
+        skills: /(?:SKILLS|TECHNICAL\s*SKILLS|CORE\s*SKILLS)[\s:]*\n([\s\S]*?)(?=\n(?:EDUCATION|CERTIFICATIONS|TECHNICAL\s*PROFICIENCIES|$))/i,
+        education: /(?:EDUCATION|ACADEMIC)[\s:]*\n([\s\S]*?)(?=\n(?:CERTIFICATIONS|TECHNICAL\s*PROFICIENCIES|$))/i,
+        certifications: /(?:CERTIFICATIONS?|LICENSES?)[\s:]*\n([\s\S]*?)(?=\n(?:TECHNICAL\s*PROFICIENCIES|$))/i,
+        technicalProficiencies: /(?:TECHNICAL\s*PROFICIENCIES)[\s:]*\n([\s\S]*?)$/i
       };
 
       for (const [section, pattern] of Object.entries(patterns)) {
@@ -223,6 +225,13 @@
       if (sections.certifications) {
         lines.push('CERTIFICATIONS');
         lines.push(sections.certifications);
+        lines.push('');
+      }
+      
+      // TECHNICAL PROFICIENCIES (CRITICAL: Include for PDF = Preview match)
+      if (sections.technicalProficiencies) {
+        lines.push('TECHNICAL PROFICIENCIES');
+        lines.push(sections.technicalProficiencies);
       }
       
       return lines.join('\n');
@@ -327,6 +336,12 @@
       if (sections.certifications) {
         addSectionHeader('CERTIFICATIONS');
         addText(sections.certifications, false, false, fontSize.body);
+      }
+
+      // TECHNICAL PROFICIENCIES (CRITICAL: Include for PDF = Preview match)
+      if (sections.technicalProficiencies) {
+        addSectionHeader('TECHNICAL PROFICIENCIES');
+        addText(sections.technicalProficiencies, false, false, fontSize.body);
       }
 
       const base64 = doc.output('datauristring').split(',')[1];
