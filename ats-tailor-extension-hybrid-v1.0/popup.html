@@ -233,7 +233,8 @@
             </div>
           </div>
           <div class="document-actions">
-            <button id="downloadCv" class="btn btn-small btn-icon-only" title="Download">⬇️</button>
+            <button id="downloadCv" class="btn btn-small btn-icon-only" title="Download PDF">⬇️</button>
+            <button id="downloadCvText" class="btn btn-small btn-icon-only" title="Download Text">📝</button>
           </div>
         </div>
 
@@ -246,7 +247,8 @@
             </div>
           </div>
           <div class="document-actions">
-            <button id="downloadCover" class="btn btn-small btn-icon-only" title="Download">⬇️</button>
+            <button id="downloadCover" class="btn btn-small btn-icon-only" title="Download PDF">⬇️</button>
+            <button id="downloadCoverText" class="btn btn-small btn-icon-only" title="Download Text">📝</button>
           </div>
         </div>
 
@@ -254,6 +256,7 @@
         <div class="preview-tabs">
           <button id="previewCvTab" class="preview-tab active">Resume</button>
           <button id="previewCoverTab" class="preview-tab">Cover Letter</button>
+          <button id="previewTextTab" class="preview-tab">Text View</button>
         </div>
         
         <!-- Preview Content -->
@@ -395,18 +398,15 @@
   <script src="tailor-universal.js"></script>
   <script src="validation-engine.js"></script>
   
-  <!-- Legacy modules (backward compatibility) -->
-  <script src="keyword-extractor.js"></script>
-  <script src="cv-tailor.js"></script>
+  <!-- Resume Builder (new) -->
+  <script src="resume-builder.js"></script>
+  
+  <!-- Turbo Pipeline -->
+  <script src="turbo-pipeline.js"></script>
   
   <!-- UI and automation modules -->
-  <script src="match-ui.js"></script>
   <script src="dynamic-score.js"></script>
-  <script src="auto-tailor-95.js"></script>
-  <script src="ui-keyword-chips.js"></script>
-  <script src="button-fixer.js"></script>
-  <script src="location-tailor.js"></script>
-  <script src="pdf-ats-perfect.js"></script>
+  <script src="pdf-ats-turbo.js"></script>
   
   <!-- Main application (load last) -->
   <script src="popup.js"></script>
