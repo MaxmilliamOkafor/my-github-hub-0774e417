@@ -193,36 +193,67 @@
 
     const parsed = parseUserCV(cvText);
     const usedKeywords = new Set();
+    const cvLower = cvText.toLowerCase();
+    
+    // Track which keywords are already in the CV
+    const keywordsInCV = new Set();
+    const keywordsMissing = [];
+    
+    jobKeywords.forEach(kw => {
+      if (cvLower.includes(kw.toLowerCase())) {
+        keywordsInCV.add(kw.toLowerCase());
+      } else {
+        keywordsMissing.push(kw);
+      }
+    });
+    
+    console.log(`[UniqueCVEngine] Keywords already in CV: ${keywordsInCV.size}, Missing: ${keywordsMissing.length}`);
+    
     const stats = { 
       rolesProcessed: 0, 
       bulletsModified: 0, 
       keywordsInjected: 0,
+      keywordsAlreadyPresent: keywordsInCV.size,
+      keywordsMissing: keywordsMissing.length,
       preservedCompanies: [],
       preservedTitles: [],
       preservedMetrics: []
     };
 
     // Process each role - PRESERVE company, title, dates; MODIFY bullets only
+    // CRITICAL: Process ALL roles and inject ALL missing keywords
     const modifiedRoles = parsed.rawRoles.map((role, roleIdx) => {
       stats.rolesProcessed++;
       stats.preservedCompanies.push(role.company);
       stats.preservedTitles.push(role.title);
 
-      // Role weight: more recent roles get more keywords
-      const roleWeight = Math.max(1, 4 - roleIdx); // 4, 3, 2, 1 for first 4 roles
-      const keywordsForRole = jobKeywords.slice(0, 5 * roleWeight);
+      // Distribute keywords across roles: more recent roles get more
+      // Role 0 (most recent): all keywords available
+      // Role 1: 80% of keywords
+      // Role 2: 60% of keywords
+      // Role 3+: 40% of keywords
+      const roleShare = Math.max(0.4, 1 - (roleIdx * 0.2));
+      const keywordsForRole = keywordsMissing.slice(0, Math.ceil(keywordsMissing.length * roleShare));
+      
+      // Calculate keywords per bullet for this role
+      const bulletsAvailable = role.originalBullets.length || 1;
+      const keywordsPerBullet = Math.ceil(keywordsForRole.length / bulletsAvailable);
 
       const modifiedBullets = role.originalBullets.map((bullet, bulletIdx) => {
         // Preserve metrics in stats
         bullet.metrics.forEach(m => stats.preservedMetrics.push(m));
 
-        // Only modify if we haven't hit our keyword distribution target
-        if (usedKeywords.size >= jobKeywords.length * 0.8) return bullet.text;
+        // Get keywords for THIS bullet (don't stop early!)
+        const startIdx = bulletIdx * keywordsPerBullet;
+        const endIdx = Math.min(startIdx + keywordsPerBullet, keywordsForRole.length);
+        const bulletKeywords = keywordsForRole.slice(startIdx, endIdx).filter(kw => !usedKeywords.has(kw.toLowerCase()));
+        
+        if (bulletKeywords.length === 0) return bullet.text;
 
-        const enhanced = generateUniqueBullet(bullet, keywordsForRole, usedKeywords, bulletIdx);
+        const enhanced = generateUniqueBullet(bullet, bulletKeywords, usedKeywords, bulletIdx);
         if (enhanced !== bullet.text) {
           stats.bulletsModified++;
-          stats.keywordsInjected += Math.min(2, keywordsForRole.length);
+          stats.keywordsInjected += bulletKeywords.length;
         }
         return enhanced;
       });

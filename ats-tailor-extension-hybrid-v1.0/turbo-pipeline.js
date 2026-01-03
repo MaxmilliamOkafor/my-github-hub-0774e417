@@ -168,26 +168,42 @@
     };
   }
 
-  // ============ HIGH PRIORITY KEYWORD DISTRIBUTION (3-5x mentions) ============
-  // CRITICAL FIX: Distribute high priority keywords 3-5 times across Work Experience bullets
-  // Distribution strategy: Solim (2-3x), Meta (1-2x), Accenture (1x), Citigroup (1x)
-  function distributeHighPriorityKeywords(cvText, highPriorityKeywords, options = {}) {
+  // ============ HIGH PRIORITY KEYWORD DISTRIBUTION (ALL KEYWORDS, 3-5x mentions) ============
+  // CRITICAL FIX: Distribute ALL extracted keywords naturally across Work Experience
+  // Every keyword with 0 mentions MUST be injected at least once
+  // High priority keywords get 3-5x mentions distributed across roles
+  function distributeHighPriorityKeywords(cvText, allKeywords, options = {}) {
     const startTime = performance.now();
-    const { maxBulletsPerRole = 8, targetMentions = 4, minMentions = 3, maxMentions = 5 } = options;
+    const { maxBulletsPerRole = 8, targetMentions = 3, maxMentions = 5 } = options;
     
-    if (!cvText || !highPriorityKeywords?.length) {
+    if (!cvText || !allKeywords?.length) {
       return { tailoredCV: cvText, distributionStats: {}, timing: 0 };
     }
 
     let tailoredCV = cvText;
+    const cvLower = cvText.toLowerCase();
     const stats = {};
     
     // Initialize stats: count existing mentions of each keyword
-    highPriorityKeywords.forEach(kw => {
+    allKeywords.forEach(kw => {
+      const kwLower = kw.toLowerCase();
       const regex = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
       const existingMentions = (cvText.match(regex) || []).length;
-      stats[kw] = { mentions: existingMentions, roles: [], target: targetMentions, added: 0 };
+      stats[kw] = { 
+        mentions: existingMentions, 
+        roles: [], 
+        target: targetMentions, 
+        added: 0,
+        existedBefore: existingMentions > 0
+      };
     });
+
+    // CRITICAL: Separate keywords that MUST be added (0 mentions) from those needing more
+    const mustAddKeywords = allKeywords.filter(kw => stats[kw].mentions === 0);
+    const needsMoreKeywords = allKeywords.filter(kw => stats[kw].mentions > 0 && stats[kw].mentions < targetMentions);
+    
+    console.log(`[TurboPipeline] Keywords with 0 mentions (MUST add): ${mustAddKeywords.length}`);
+    console.log(`[TurboPipeline] Keywords needing more mentions: ${needsMoreKeywords.length}`);
 
     // Find Work Experience section boundaries
     const expMatch = /\n(EXPERIENCE|WORK\s*EXPERIENCE|EMPLOYMENT|PROFESSIONAL\s*EXPERIENCE)[\s:]*\n/im.exec(tailoredCV);
@@ -203,20 +219,25 @@
     
     let experienceSection = tailoredCV.substring(expStart, expEnd);
     
-    // Role-based distribution targets (more recent roles get more keywords)
+    // Role-based distribution: More keywords in recent/relevant roles
+    // Solim (most recent) gets most keywords, then Meta, Accenture, Citigroup
     const roleTargets = [
-      { name: 'Meta (Role 1)', maxKeywordsPerBullet: 2, maxBullets: 5 },
-      { name: 'Solim (Role 2)', maxKeywordsPerBullet: 2, maxBullets: 4 },
-      { name: 'Accenture (Role 3)', maxKeywordsPerBullet: 1, maxBullets: 3 },
-      { name: 'Citigroup (Role 4)', maxKeywordsPerBullet: 1, maxBullets: 2 }
+      { name: 'Role 1 (Most Recent)', maxKeywordsPerBullet: 3, maxBullets: 8, priority: 1 },
+      { name: 'Role 2', maxKeywordsPerBullet: 3, maxBullets: 8, priority: 2 },
+      { name: 'Role 3', maxKeywordsPerBullet: 2, maxBullets: 6, priority: 3 },
+      { name: 'Role 4', maxKeywordsPerBullet: 2, maxBullets: 4, priority: 4 }
     ];
     
     // Natural injection phrases (varied for authenticity)
     const phrases = [
-      'leveraging', 'utilizing', 'implementing', 'applying', 'with expertise in',
-      'through', 'incorporating', 'employing', 'using', 'via'
+      'leveraging', 'utilizing', 'through', 'with', 'via',
+      'incorporating', 'applying', 'using', 'employing'
     ];
     const getPhrase = () => phrases[Math.floor(Math.random() * phrases.length)];
+
+    // Track which keywords still need to be added
+    const pendingMustAdd = [...mustAddKeywords];
+    const pendingNeedsMore = [...needsMoreKeywords];
 
     // Split into lines and identify role boundaries
     const lines = experienceSection.split('\n');
@@ -230,7 +251,7 @@
       
       // Detect role header (Company | Title | Date or similar patterns)
       const isRoleHeader = /^[A-Z][A-Za-z\s&.,]+\s*\|/.test(trimmed) || 
-                          /^(Meta|Solim|Accenture|Citigroup|Google|Amazon|Microsoft)/i.test(trimmed);
+                          /^(Meta|Solim|SolimHealth|Accenture|Citigroup|Google|Amazon|Microsoft)/i.test(trimmed);
       
       if (isRoleHeader) {
         roleIndex++;
@@ -249,54 +270,118 @@
       bulletCountInRole++;
       const roleConfig = roleTargets[Math.min(roleIndex, roleTargets.length - 1)];
       
-      // Skip if we've processed enough bullets for this role
-      if (bulletCountInRole > roleConfig.maxBullets) {
+      // Don't skip bullets - we need to inject ALL keywords
+      const lineLower = line.toLowerCase();
+      
+      // Priority 1: Add keywords with 0 mentions (MUST add)
+      const mustAddForBullet = pendingMustAdd.filter(kw => !lineLower.includes(kw.toLowerCase()));
+      
+      // Priority 2: Add more mentions for existing keywords
+      const needsMoreForBullet = pendingNeedsMore.filter(kw => 
+        !lineLower.includes(kw.toLowerCase()) && stats[kw].mentions < targetMentions
+      );
+      
+      // Combine: prioritize must-add, then needs-more
+      const toInject = [
+        ...mustAddForBullet.slice(0, roleConfig.maxKeywordsPerBullet),
+        ...needsMoreForBullet.slice(0, Math.max(0, roleConfig.maxKeywordsPerBullet - mustAddForBullet.length))
+      ].slice(0, roleConfig.maxKeywordsPerBullet);
+      
+      if (toInject.length === 0) {
         modifiedLines.push(line);
         continue;
       }
       
-      // Find keywords that need more mentions (below minMentions target)
-      const needsMore = highPriorityKeywords.filter(kw => {
-        const current = stats[kw].mentions;
-        const inLine = line.toLowerCase().includes(kw.toLowerCase());
-        return current < minMentions && !inLine;
-      });
-      
-      if (needsMore.length === 0) {
-        modifiedLines.push(line);
-        continue;
-      }
-      
-      // Inject 1-2 keywords per bullet based on role config
-      const toInject = needsMore.slice(0, roleConfig.maxKeywordsPerBullet);
       let enhanced = line;
       
       toInject.forEach(kw => {
-        // Only inject if we haven't exceeded maxMentions
+        // Check we haven't exceeded maxMentions for this keyword
         if (stats[kw].mentions >= maxMentions) return;
         
         const phrase = getPhrase();
+        
+        // Inject naturally at end of bullet
         if (enhanced.endsWith('.')) {
           enhanced = enhanced.slice(0, -1) + `, ${phrase} ${kw}.`;
         } else {
-          enhanced = enhanced.trimEnd() + ` ${phrase} ${kw}`;
+          enhanced = enhanced.trimEnd() + ` ${phrase} ${kw}.`;
         }
+        
         stats[kw].mentions++;
         stats[kw].added++;
         stats[kw].roles.push(roleConfig.name);
+        
+        // Remove from pending lists
+        const mustIdx = pendingMustAdd.indexOf(kw);
+        if (mustIdx > -1) pendingMustAdd.splice(mustIdx, 1);
+        
+        const needsIdx = pendingNeedsMore.indexOf(kw);
+        if (needsIdx > -1 && stats[kw].mentions >= targetMentions) {
+          pendingNeedsMore.splice(needsIdx, 1);
+        }
       });
       
       modifiedLines.push(enhanced);
     }
 
     experienceSection = modifiedLines.join('\n');
+    
+    // SECOND PASS: If there are STILL keywords with 0 mentions, add new bullets
+    if (pendingMustAdd.length > 0) {
+      console.log(`[TurboPipeline] Adding ${pendingMustAdd.length} remaining keywords via new bullets`);
+      
+      const newBullets = [];
+      const templates = [
+        'Delivered solutions leveraging {kw1}, {kw2}, and {kw3} to enhance system performance.',
+        'Implemented {kw1} and {kw2} initiatives, driving {kw3} adoption across teams.',
+        'Applied {kw1}, {kw2}, {kw3} methodologies to improve project outcomes.',
+        'Integrated {kw1} with {kw2} systems, utilizing {kw3} for optimal results.'
+      ];
+      
+      while (pendingMustAdd.length > 0) {
+        const batch = pendingMustAdd.splice(0, 3);
+        const template = templates[newBullets.length % templates.length];
+        const bullet = template
+          .replace('{kw1}', batch[0] || '')
+          .replace('{kw2}', batch[1] || batch[0])
+          .replace('{kw3}', batch[2] || batch[1] || batch[0])
+          .replace(/, ,|, \./g, '.')
+          .replace(/\s+/g, ' ');
+        
+        newBullets.push(`▪ ${bullet.trim()}`);
+        batch.forEach(kw => {
+          if (kw) {
+            stats[kw].mentions++;
+            stats[kw].added++;
+            stats[kw].roles.push('New Bullet');
+          }
+        });
+      }
+      
+      // Insert new bullets after first role's bullets
+      const insertPoint = experienceSection.search(/\n\s*\n/);
+      if (insertPoint > 0) {
+        experienceSection = experienceSection.slice(0, insertPoint) + 
+          '\n' + newBullets.join('\n') + 
+          experienceSection.slice(insertPoint);
+      } else {
+        experienceSection += '\n' + newBullets.join('\n');
+      }
+    }
+    
     tailoredCV = tailoredCV.substring(0, expStart) + experienceSection + tailoredCV.substring(expEnd);
 
-    const timing = performance.now() - startTime;
-    console.log(`[TurboPipeline] High Priority distribution in ${timing.toFixed(0)}ms:`, 
-      Object.entries(stats).map(([k, v]) => `${k}: ${v.mentions}x (added ${v.added})`).join(', '));
+    // Log final distribution
+    const addedCount = Object.values(stats).reduce((sum, s) => sum + s.added, 0);
+    const zeroMentions = Object.entries(stats).filter(([k, v]) => v.mentions === 0);
     
-    return { tailoredCV, distributionStats: stats, timing };
+    const timing = performance.now() - startTime;
+    console.log(`[TurboPipeline] ✅ High Priority distribution in ${timing.toFixed(0)}ms:`);
+    console.log(`  - Total keywords: ${allKeywords.length}`);
+    console.log(`  - Keywords added: ${addedCount}`);
+    console.log(`  - Still missing: ${zeroMentions.length}`, zeroMentions.map(([k]) => k));
+    
+    return { tailoredCV, distributionStats: stats, timing, addedCount, stillMissing: zeroMentions.length };
   }
 
   // ============ TURBO CV TAILORING (≤50ms - LAZYAPPLY 3X) ============
@@ -336,11 +421,20 @@
       injected = result.injectedKeywords;
     }
 
-    // HIGH PRIORITY DISTRIBUTION (3-5x mentions)
-    if (keywords.highPriority?.length > 0) {
-      const distResult = distributeHighPriorityKeywords(tailoredCV, keywords.highPriority, {
-        maxBulletsPerRole: 6, // Reduced for speed
-        targetMentions: 3     // Reduced for speed
+    // HIGH PRIORITY DISTRIBUTION - INJECT ALL KEYWORDS (not just high priority)
+    // Pass ALL keywords to ensure 100% coverage in work experience
+    const allKeywordsToDistribute = [
+      ...(keywords.highPriority || []),
+      ...(keywords.mediumPriority || []),
+      ...(keywords.lowPriority || []),
+      ...(keywords.workExperience || [])
+    ].filter((kw, idx, arr) => arr.indexOf(kw) === idx); // Deduplicate
+    
+    if (allKeywordsToDistribute.length > 0) {
+      const distResult = distributeHighPriorityKeywords(tailoredCV, allKeywordsToDistribute, {
+        maxBulletsPerRole: 8,
+        targetMentions: 3,
+        maxMentions: 5
       });
       tailoredCV = distResult.tailoredCV;
     }
