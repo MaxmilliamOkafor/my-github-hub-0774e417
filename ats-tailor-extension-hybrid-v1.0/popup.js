@@ -170,6 +170,10 @@ class ATSTailor {
     document.getElementById('attachBoth')?.addEventListener('click', () => this.attachBothDocuments());
     document.getElementById('copyContent')?.addEventListener('click', () => this.copyCurrentContent());
     
+    // NEW: Text download buttons
+    document.getElementById('downloadCvText')?.addEventListener('click', () => this.downloadTextVersion('cv'));
+    document.getElementById('downloadCoverText')?.addEventListener('click', () => this.downloadTextVersion('cover'));
+    
     // Bulk Apply Dashboard
     document.getElementById('openBulkApply')?.addEventListener('click', () => {
       chrome.tabs.create({ url: chrome.runtime.getURL('bulk-apply.html') });
@@ -206,6 +210,7 @@ class ATSTailor {
     // Preview tabs
     document.getElementById('previewCvTab')?.addEventListener('click', () => this.switchPreviewTab('cv'));
     document.getElementById('previewCoverTab')?.addEventListener('click', () => this.switchPreviewTab('cover'));
+    document.getElementById('previewTextTab')?.addEventListener('click', () => this.switchPreviewTab('text'));
 
     // Enter key for login
     document.getElementById('password')?.addEventListener('keypress', (e) => {
@@ -224,6 +229,37 @@ class ATSTailor {
     
     // Check for pending automation trigger on popup open
     this.checkPendingAutomationTrigger();
+  }
+  
+  // NEW: Download text version of CV/Cover Letter
+  downloadTextVersion(type) {
+    const content = type === 'cv' ? this.generatedDocuments.cv : this.generatedDocuments.coverLetter;
+    if (!content) {
+      this.showToast(`No ${type === 'cv' ? 'CV' : 'Cover Letter'} content to download`, 'error');
+      return;
+    }
+    
+    const fileName = type === 'cv' 
+      ? (this.generatedDocuments.cvFileName || 'Resume').replace('.pdf', '') + '.txt'
+      : (this.generatedDocuments.coverFileName || 'Cover_Letter').replace('.pdf', '') + '.txt';
+    
+    // Use ResumeBuilder if available
+    if (typeof ResumeBuilder !== 'undefined' && ResumeBuilder.downloadTextVersion) {
+      ResumeBuilder.downloadTextVersion(content, fileName);
+    } else {
+      // Fallback
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    
+    this.showToast(`Downloaded ${fileName}`, 'success');
   }
   
   /**
@@ -460,6 +496,7 @@ class ATSTailor {
     
     document.getElementById('previewCvTab')?.classList.toggle('active', tab === 'cv');
     document.getElementById('previewCoverTab')?.classList.toggle('active', tab === 'cover');
+    document.getElementById('previewTextTab')?.classList.toggle('active', tab === 'text');
     
     this.updatePreviewContent();
   }
@@ -467,6 +504,20 @@ class ATSTailor {
   updatePreviewContent() {
     const previewContent = document.getElementById('previewContent');
     if (!previewContent) return;
+    
+    // Handle text view tab
+    if (this.currentPreviewTab === 'text') {
+      const cvContent = this.generatedDocuments.cv || '';
+      if (cvContent) {
+        // Show plain text version with monospace formatting
+        previewContent.innerHTML = `<pre style="white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 10px; line-height: 1.3; padding: 8px; background: #f5f5f5; border-radius: 4px; overflow-x: auto;">${cvContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`;
+        previewContent.classList.remove('placeholder');
+      } else {
+        previewContent.textContent = 'Generate CV to see text version...';
+        previewContent.classList.add('placeholder');
+      }
+      return;
+    }
     
     const content = this.currentPreviewTab === 'cv' 
       ? this.generatedDocuments.cv 
@@ -501,11 +552,11 @@ class ATSTailor {
     
     if (type === 'cv') {
       formatted = formatted
-        .replace(/^(PROFESSIONAL SUMMARY|EXPERIENCE|EDUCATION|SKILLS|CERTIFICATIONS|ACHIEVEMENTS|PROJECTS)/gm, 
+        .replace(/^(PROFESSIONAL SUMMARY|WORK EXPERIENCE|EXPERIENCE|EDUCATION|SKILLS|CERTIFICATIONS|ACHIEVEMENTS|PROJECTS|TECHNICAL PROFICIENCIES)/gm, 
           '<span class="section-header">$1</span>')
         .replace(/^([A-Z][A-Za-z\s&]+)\s*\|\s*(.+)$/gm, 
           '<strong>$1</strong> | <span class="date-line">$2</span>')
-        .replace(/^•\s*/gm, '• ');
+        .replace(/^[•▪]\s*/gm, '• ');
     } else {
       formatted = formatted
         .replace(/^(Date:.+)$/m, '<span class="date-line">$1</span>')
