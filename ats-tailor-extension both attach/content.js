@@ -116,6 +116,25 @@
     }
   }
 
+  // ============ LOCATION SANITIZATION ============
+  // User rule: Never keep "Remote" in a location string (e.g., "Dublin | Remote" -> "Dublin").
+  function stripRemoteFromLocation(raw) {
+    const s = (raw || '').toString().trim();
+    if (!s) return '';
+
+    // Remove any "remote" token and common separators around it
+    let out = s
+      .replace(/\b(remote|work\s*from\s*home|wfh|virtual)\b/gi, '')
+      .replace(/\s*(\||,|\/|\u2013|\u2014|-|\u00b7)\s*(\||,|\/|\u2013|\u2014|-|\u00b7)\s*/g, ' | ')
+      .replace(/\s*(\||,|\/|\u2013|\u2014|-|\u00b7)\s*$/g, '')
+      .replace(/^\s*(\||,|\/|\u2013|\u2014|-|\u00b7)\s*/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+    // If it becomes empty after stripping, return empty (caller can fallback)
+    return out;
+  }
+
   // ============ FIELD DETECTION ============
   function isCVField(input) {
     const text = (
@@ -123,6 +142,7 @@
       (input.name || '') +
       (input.id || '') +
       (input.getAttribute('aria-label') || '') +
+      (input.getAttribute('data-qa') || '') +
       (input.closest('label')?.textContent || '')
     ).toLowerCase();
     
@@ -144,6 +164,7 @@
       (input.name || '') +
       (input.id || '') +
       (input.getAttribute('aria-label') || '') +
+      (input.getAttribute('data-qa') || '') +
       (input.closest('label')?.textContent || '')
     ).toLowerCase();
     
@@ -313,6 +334,35 @@
     return attached;
   }
 
+  // ============ GREENHOUSE COVER LETTER: CLICK "ATTACH" TO REVEAL INPUT ============
+  function clickGreenhouseCoverAttach() {
+    const nodes = document.querySelectorAll('label, h1, h2, h3, h4, h5, span, div, fieldset');
+    for (const node of nodes) {
+      const t = (node.textContent || '').trim().toLowerCase();
+      if (!t || t.length > 60) continue;
+      if (!t.includes('cover letter')) continue;
+
+      const container = node.closest('fieldset') || node.closest('.field') || node.closest('section') || node.parentElement;
+      if (!container) continue;
+
+      // If a visible file input already exists in this section, no need to click.
+      const existing = container.querySelector('input[type="file"]');
+      if (existing && existing.offsetParent !== null) return true;
+
+      const buttons = container.querySelectorAll('button, a[role="button"], [role="button"]');
+      for (const btn of buttons) {
+        const bt = (btn.textContent || '').trim().toLowerCase();
+        if (bt === 'attach' || bt.includes('attach')) {
+          try {
+            btn.click();
+            return true;
+          } catch {}
+        }
+      }
+    }
+    return false;
+  }
+
   // ============ FORCE EVERYTHING ============
   function forceEverything() {
     // STEP 1: Greenhouse specific - click attach buttons to reveal hidden inputs
@@ -323,6 +373,9 @@
         try { btn.click(); } catch {}
       }
     });
+
+    // STEP 1b: Greenhouse cover letter section often needs a dedicated "Attach" click
+    clickGreenhouseCoverAttach();
     
     // STEP 2: Make any hidden file inputs visible and accessible
     document.querySelectorAll('input[type="file"]').forEach(input => {
@@ -398,7 +451,8 @@
       company = document.title.split(' at ').pop()?.split('|')[0]?.split('-')[0]?.trim() || '';
     }
 
-    const location = selectors ? getText(selectors.location) : '';
+    const rawLocation = selectors ? getText(selectors.location) : '';
+    const location = stripRemoteFromLocation(rawLocation) || rawLocation;
     const rawDesc = selectors ? getText(selectors.description) : '';
     const description = rawDesc?.trim()?.length > 80 ? rawDesc.trim().substring(0, 3000) : '';
 
