@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "ATS Tailored CV & Cover Letter",
-  "version": "1.2.0",
-  "description": "Lightning-fast ATS-optimized CV and cover letter tailoring with X-button removal for Greenhouse, Workday, SmartRecruiters, Bullhorn, Teamtailor, Workable, ICIMS, Oracle Cloud.",
+  "name": "ATS Tailor MERGED v1.5.0 - BOTH ATTACH + HYBRID Features",
+  "version": "1.5.0",
+  "description": "MERGED v1.5.0: BOTH ATTACH (CV + Cover Letter) + All HYBRID v1.0 SWEET features (Turbo Pipeline, OpenResume Generator, Resume Builder, Bulk Apply). HARD RULE: Never 'Remote' in CV location. ATS-perfect PDF: Arial 10.5pt, 0.75\" margins.",
   "permissions": [
     "storage",
     "activeTab",
@@ -21,7 +21,8 @@
     "https://*.icims.com/*",
     "https://*.oracle.com/*",
     "https://*.oraclecloud.com/*",
-    "https://*.taleo.net/*"
+    "https://*.taleo.net/*",
+    "https://wntpldomgjutwufphnpg.supabase.co/*"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -47,7 +48,23 @@
         "https://*.oraclecloud.com/*",
         "https://*.taleo.net/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "mandatory-keywords.js",
+        "universal-jd-parser.js",
+        "reliable-extractor.js",
+        "universal-keyword-strategy.js",
+        "unique-cv-engine.js",
+        "tailor-universal.js",
+        "validation-engine.js",
+        "dynamic-score.js",
+        "turbo-pipeline.js",
+        "universal-location-strategy.js",
+        "pdf-ats-turbo.js",
+        "file-attacher-turbo.js",
+        "openresume-generator.js",
+        "resume-builder.js",
+        "content.js"
+      ],
       "css": ["content.css"],
       "run_at": "document_end"
     }
@@ -62,7 +79,27 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["icons/*.png", "content.css"],
+      "resources": [
+        "icons/*.png",
+        "content.css",
+        "bulk-apply.html",
+        "bulk-apply.css",
+        "bulk-apply.js",
+        "mandatory-keywords.js",
+        "universal-jd-parser.js",
+        "reliable-extractor.js",
+        "universal-keyword-strategy.js",
+        "unique-cv-engine.js",
+        "tailor-universal.js",
+        "validation-engine.js",
+        "dynamic-score.js",
+        "turbo-pipeline.js",
+        "universal-location-strategy.js",
+        "pdf-ats-turbo.js",
+        "file-attacher-turbo.js",
+        "openresume-generator.js",
+        "resume-builder.js"
+      ],
       "matches": ["<all_urls>"]
     }
   ]

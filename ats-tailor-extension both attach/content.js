@@ -116,24 +116,35 @@
     }
   }
 
-  // ============ LOCATION SANITIZATION ============
-  // User rule: Never keep "Remote" in a location string (e.g., "Dublin | Remote" -> "Dublin").
+  // ============ LOCATION SANITIZATION (HARD RULE: NEVER "REMOTE" ON CV) ============
+  // User rule: "Remote" should NEVER appear in CV location. "Dublin, IE | Remote" -> "Dublin, IE"
+  // This is a recruiter red flag and must be stripped from ALL CVs, even if it exists
+  // in the stored profile or uploaded base CV.
   function stripRemoteFromLocation(raw) {
     const s = (raw || '').toString().trim();
     if (!s) return '';
 
+    // If location is ONLY "Remote" or "Remote, <country>", return empty for fallback
+    if (/^remote$/i.test(s) || /^remote\s*[\(,\\-]\s*\w+\)?$/i.test(s)) {
+      return '';
+    }
+
     // Remove any "remote" token and common separators around it
     let out = s
-      .replace(/\b(remote|work\s*from\s*home|wfh|virtual)\b/gi, '')
+      .replace(/\b(remote|work\s*from\s*home|wfh|virtual|fully\s*remote|remote\s*first|remote\s*friendly)\b/gi, '')
+      .replace(/\s*[\(\[]?\s*(remote|wfh|virtual)\s*[\)\]]?\s*/gi, '')
       .replace(/\s*(\||,|\/|\u2013|\u2014|-|\u00b7)\s*(\||,|\/|\u2013|\u2014|-|\u00b7)\s*/g, ' | ')
       .replace(/\s*(\||,|\/|\u2013|\u2014|-|\u00b7)\s*$/g, '')
       .replace(/^\s*(\||,|\/|\u2013|\u2014|-|\u00b7)\s*/g, '')
       .replace(/\s{2,}/g, ' ')
       .trim();
 
-    // If it becomes empty after stripping, return empty (caller can fallback)
+    // If it becomes empty after stripping, return empty (caller can fallback to default)
     return out;
   }
+
+  // Export globally for PDF generators
+  window.stripRemoteFromLocation = stripRemoteFromLocation;
 
   // ============ FIELD DETECTION ============
   function isCVField(input) {
