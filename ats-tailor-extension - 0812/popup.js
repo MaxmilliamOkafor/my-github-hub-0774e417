@@ -202,6 +202,9 @@ class ATSTailor {
     document.getElementById('logoutBtn')?.addEventListener('click', () => this.logout());
     document.getElementById('tailorBtn')?.addEventListener('click', () => this.tailorDocuments({ force: true }));
     document.getElementById('refreshJob')?.addEventListener('click', () => this.detectCurrentJob());
+    document.getElementById('editJobTitle')?.addEventListener('click', () => this.toggleJobTitleEdit());
+    document.getElementById('jobTitleInput')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') this.saveJobTitleEdit(); });
+    document.getElementById('jobTitleInput')?.addEventListener('blur', () => this.saveJobTitleEdit());
     document.getElementById('downloadCv')?.addEventListener('click', () => this.downloadDocument('cv'));
     document.getElementById('downloadCover')?.addEventListener('click', () => this.downloadDocument('cover'));
     document.getElementById('attachBoth')?.addEventListener('click', () => this.attachBothDocuments());
@@ -1426,10 +1429,11 @@ class ATSTailor {
     const companyEl = document.getElementById('jobCompany');
     const locationEl = document.getElementById('jobLocation');
     const noJobBadge = document.getElementById('noJobBadge');
+    const companyIndicator = document.getElementById('companyIndicator');
+    const editBtn = document.getElementById('editJobTitle');
     
     if (this.currentJob) {
       if (titleEl) titleEl.textContent = this.currentJob.title || 'Job Position';
-      // Hide "the company" fallback - only show real company names
       const company = this.currentJob.company || '';
       const isValidCompany = company && company.toLowerCase() !== 'the company' && company.toLowerCase() !== 'company';
       if (companyEl) {
@@ -1438,12 +1442,63 @@ class ATSTailor {
       }
       if (locationEl) locationEl.textContent = this.currentJob.location || '';
       if (noJobBadge) noJobBadge.classList.add('hidden');
+      
+      // Show company detection indicator
+      if (companyIndicator && this.currentJob.companySource) {
+        companyIndicator.classList.remove('hidden', 'domain', 'jsonld', 'manual');
+        const source = this.currentJob.companySource;
+        companyIndicator.classList.add(source);
+        companyIndicator.textContent = source === 'domain' ? '🏢' : source === 'jsonld' ? '📋' : source === 'manual' ? '✏️' : '🌐';
+        companyIndicator.title = `Detected: ${this.currentJob.detectedCompany || company} (${source})`;
+      }
+      
+      // Show edit button for company career sites (not ATS platforms)
+      const isATSPlatform = ['greenhouse', 'workday', 'myworkdayjobs', 'lever', 'ashby', 'smartrecruiters', 'workable', 'icims', 'bullhorn', 'teamtailor'].some(p => (this.currentJob.url || '').toLowerCase().includes(p));
+      if (editBtn) editBtn.classList.toggle('hidden', isATSPlatform);
+      
+      // Add to history
+      this.addToHistory(this.currentJob);
     } else {
       if (titleEl) titleEl.textContent = 'No job detected';
       if (companyEl) companyEl.textContent = 'Navigate to a job posting';
       if (locationEl) locationEl.textContent = '';
       if (noJobBadge) noJobBadge.classList.remove('hidden');
+      if (companyIndicator) companyIndicator.classList.add('hidden');
+      if (editBtn) editBtn.classList.add('hidden');
     }
+    this.updateHistoryUI();
+  }
+
+  // Add job to history
+  async addToHistory(job) {
+    if (!job?.title) return;
+    const history = await this.getJobHistory();
+    const entry = { title: job.title, company: job.company, url: job.url, matchScore: this.generatedDocuments?.matchScore || 0, timestamp: Date.now() };
+    const existing = history.findIndex(h => h.url === job.url);
+    if (existing >= 0) history[existing] = entry;
+    else history.unshift(entry);
+    await chrome.storage.local.set({ ats_job_history: history.slice(0, 20) });
+  }
+
+  async getJobHistory() {
+    const result = await new Promise(r => chrome.storage.local.get(['ats_job_history'], r));
+    return result.ats_job_history || [];
+  }
+
+  async updateHistoryUI() {
+    const list = document.getElementById('historyList');
+    if (!list) return;
+    const history = await this.getJobHistory();
+    if (!history.length) {
+      list.innerHTML = '<p class="history-empty">No recent jobs.</p>';
+      return;
+    }
+    list.innerHTML = history.slice(0, 10).map(h => `
+      <div class="history-item" title="${h.url}">
+        <div><div class="history-item-title">${this.escapeHtml(h.title?.substring(0, 30) || 'Job')}</div><div class="history-item-company">${this.escapeHtml(h.company || '')}</div></div>
+        <span class="history-item-score">${h.matchScore || 0}%</span>
+      </div>
+    `).join('');
   }
 
   /**
@@ -2940,6 +2995,7 @@ class ATSTailor {
 /**
  * Injected function to extract job information from the current page
  * Runs in page context - self-contained with no external dependencies
+ * ENHANCED: 70+ company career site selectors for proper job title/company extraction
  */
 function extractJobInfoFromPageInjected() {
   const result = {
@@ -2947,92 +3003,665 @@ function extractJobInfoFromPageInjected() {
     company: '',
     location: '',
     description: '',
-    url: window.location.href
+    url: window.location.href,
+    detectedCompany: '', // Company detected from domain
+    companySource: 'auto' // 'auto', 'domain', 'jsonld', 'selector'
   };
 
   try {
-    const host = window.location.hostname.toLowerCase();
+    const host = window.location.hostname.toLowerCase().replace(/^www\./, '');
 
     // --- Helper: get text from first matching selector ---
     const getText = (...selectors) => {
       for (const sel of selectors) {
-        const el = document.querySelector(sel);
-        if (el?.textContent?.trim()) return el.textContent.trim();
+        try {
+          const el = document.querySelector(sel);
+          if (el?.textContent?.trim()) return el.textContent.trim();
+        } catch (e) {}
       }
       return '';
     };
 
+    // ============ TIER 1-2 COMPANY CAREER SITE SELECTORS (70+) ============
+    // Maps domain → { company name, title selectors, description selectors }
+    const COMPANY_CAREER_SELECTORS = {
+      // ===== FAANG + Major Tech =====
+      'google.com': {
+        company: 'Google',
+        title: ['h2.gc-job-detail__title', 'h2[class*="job-title"]', '.gc-job-detail h2', 'h1.gc-job-detail__title', 'h1[itemprop="title"]', 'h1'],
+        location: ['.gc-job-detail__location', '[itemprop="jobLocation"]', '.location'],
+        description: ['.gc-job-detail__description', '[itemprop="description"]', '.job-description', 'main']
+      },
+      'about.google': {
+        company: 'Google',
+        title: ['h2.gc-job-detail__title', 'h1', 'h2'],
+        location: ['.gc-job-detail__location', '.location'],
+        description: ['.gc-job-detail__description', 'main']
+      },
+      'deepmind.google': {
+        company: 'Google DeepMind',
+        title: ['h1', 'h2.job-title'],
+        location: ['.location', '[class*="location"]'],
+        description: ['.job-description', 'main']
+      },
+      'meta.com': {
+        company: 'Meta',
+        title: ['h1[data-testid="job-title"]', 'h1._8sfs', 'h1'],
+        location: ['[data-testid="job-location"]', '.location'],
+        description: ['[data-testid="job-description"]', '.job-description', 'main']
+      },
+      'amazon.com': {
+        company: 'Amazon',
+        title: ['h1.job-title', 'h1[data-job-title]', 'h1'],
+        location: ['.job-location', '[data-job-location]'],
+        description: ['.job-description', '#job-description', 'main']
+      },
+      'amazon.jobs': {
+        company: 'Amazon',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'microsoft.com': {
+        company: 'Microsoft',
+        title: ['h1.job-title', 'h1[class*="title"]', 'h1'],
+        location: ['.job-location', '[class*="location"]'],
+        description: ['.job-description', '.description', 'main']
+      },
+      'apple.com': {
+        company: 'Apple',
+        title: ['h1#job-title', 'h1.job-details__title', 'h1'],
+        location: ['.job-details__location', '[class*="location"]'],
+        description: ['.job-details__description', '.description', 'main']
+      },
+
+      // ===== Enterprise Software =====
+      'salesforce.com': {
+        company: 'Salesforce',
+        title: ['h1.job-title', 'h1', 'h2.job-title'],
+        location: ['.job-location', '[class*="location"]'],
+        description: ['.job-description', 'main']
+      },
+      'ibm.com': {
+        company: 'IBM',
+        title: ['h1.bx--type-productive-heading-05', 'h1.job-title', 'h1'],
+        location: ['.job-location', '[class*="location"]'],
+        description: ['.job-description', '.description', 'main']
+      },
+      'oracle.com': {
+        company: 'Oracle',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', '#requisitionDescriptionInterface', 'main']
+      },
+      'adobe.com': {
+        company: 'Adobe',
+        title: ['h1.job-title', 'h1[data-automation="job-title"]', 'h1'],
+        location: ['.job-location', '[data-automation="job-location"]'],
+        description: ['.job-description', '[data-automation="job-description"]', 'main']
+      },
+      'sap.com': {
+        company: 'SAP',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'vmware.com': {
+        company: 'VMware',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'servicenow.com': {
+        company: 'ServiceNow',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+
+      // ===== Fintech & Payments =====
+      'stripe.com': {
+        company: 'Stripe',
+        title: ['h1.JobDetailPage__title', 'h1[class*="title"]', 'h1'],
+        location: ['.JobDetailPage__location', '[class*="location"]'],
+        description: ['.JobDetailPage__description', '.description', 'main']
+      },
+      'paypal.com': {
+        company: 'PayPal',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'visa.com': {
+        company: 'Visa',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'mastercard.com': {
+        company: 'Mastercard',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+
+      // ===== SaaS & Cloud =====
+      'hubspot.com': {
+        company: 'HubSpot',
+        title: ['h1.careers-detail__title', 'h1[class*="job-title"]', 'h1[class*="career"]', 'h1.job-title', '.job-details h1', 'article h1', 'main h1', 'h1'],
+        location: ['.careers-detail__location', '.job-location', '[class*="location"]', 'h3:contains("Dublin")'],
+        description: ['.careers-detail__description', '.job-description', '.careers-detail-content', 'article', 'main']
+      },
+      'intercom.com': {
+        company: 'Intercom',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'zendesk.com': {
+        company: 'Zendesk',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'docusign.com': {
+        company: 'DocuSign',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'twilio.com': {
+        company: 'Twilio',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'slack.com': {
+        company: 'Slack',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'atlassian.com': {
+        company: 'Atlassian',
+        title: ['h1[data-testid="job-title"]', 'h1.job-title', 'h1'],
+        location: ['[data-testid="job-location"]', '.job-location'],
+        description: ['[data-testid="job-description"]', '.job-description', 'main']
+      },
+      'gitlab.com': {
+        company: 'GitLab',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'circleci.com': {
+        company: 'CircleCI',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'datadoghq.com': {
+        company: 'Datadog',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'unity.com': {
+        company: 'Unity',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'udemy.com': {
+        company: 'Udemy',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'workhuman.com': {
+        company: 'Workhuman',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+
+      // ===== Social & Media =====
+      'linkedin.com': {
+        company: 'LinkedIn',
+        title: ['h1.topcard__title', 'h1.job-title', 'h1'],
+        location: ['.topcard__flavor--bullet', '.job-location'],
+        description: ['.description__text', '.job-description', 'main']
+      },
+      'tiktok.com': {
+        company: 'TikTok',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'snap.com': {
+        company: 'Snapchat',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'dropbox.com': {
+        company: 'Dropbox',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'bloomberg.com': {
+        company: 'Bloomberg',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+
+      // ===== Hardware & Semiconductors =====
+      'intel.com': {
+        company: 'Intel',
+        title: ['h1.job-title', 'h1#jobTitle', 'h1'],
+        location: ['.job-location', '#jobLocation'],
+        description: ['.job-description', '#jobDescription', 'main']
+      },
+      'broadcom.com': {
+        company: 'Broadcom',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'arm.com': {
+        company: 'Arm Holdings',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'tsmc.com': {
+        company: 'TSMC',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'appliedmaterials.com': {
+        company: 'Applied Materials',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'cisco.com': {
+        company: 'Cisco',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'nvidia.com': {
+        company: 'Nvidia',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'amd.com': {
+        company: 'AMD',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+
+      // ===== Finance & Consulting (Big 4) =====
+      'fidelity.com': {
+        company: 'Fidelity',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'morganstanley.com': {
+        company: 'Morgan Stanley',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'jpmorgan.com': {
+        company: 'JP Morgan Chase',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'blackrock.com': {
+        company: 'BlackRock',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'capitalone.com': {
+        company: 'Capital One',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'tdsecurities.com': {
+        company: 'TD Securities',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'kpmg.com': {
+        company: 'KPMG',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'deloitte.com': {
+        company: 'Deloitte',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'accenture.com': {
+        company: 'Accenture',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'pwc.com': {
+        company: 'PwC',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'ey.com': {
+        company: 'EY',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'mckinsey.com': {
+        company: 'McKinsey',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'kkr.com': {
+        company: 'KKR',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'fenergo.com': {
+        company: 'Fenergo',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+
+      // ===== Quant & Trading Firms =====
+      'citadel.com': {
+        company: 'Citadel',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'janestreet.com': {
+        company: 'Jane Street',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'sig.com': {
+        company: 'SIG',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'twosigma.com': {
+        company: 'Two Sigma',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'deshaw.com': {
+        company: 'DE Shaw',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'rentec.com': {
+        company: 'Renaissance Technologies',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'mlp.com': {
+        company: 'Millennium Management',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'virtu.com': {
+        company: 'Virtu Financial',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'hudsontrading.com': {
+        company: 'Hudson River Trading',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'jumptrading.com': {
+        company: 'Jump Trading',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+
+      // ===== Other Major Tech =====
+      'netflix.com': {
+        company: 'Netflix',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'tesla.com': {
+        company: 'Tesla',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'uber.com': {
+        company: 'Uber',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'airbnb.com': {
+        company: 'Airbnb',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'palantir.com': {
+        company: 'Palantir',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'crowdstrike.com': {
+        company: 'CrowdStrike',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'snowflake.com': {
+        company: 'Snowflake',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'toasttab.com': {
+        company: 'Toast',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'draftkings.com': {
+        company: 'DraftKings',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'wasabi.com': {
+        company: 'Wasabi Technologies',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'samsara.com': {
+        company: 'Samsara',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'blockchain.com': {
+        company: 'Blockchain.com',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'similarweb.com': {
+        company: 'Similarweb',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      },
+      'corporate.walmart.com': {
+        company: 'Walmart',
+        title: ['h1.job-title', 'h1'],
+        location: ['.job-location'],
+        description: ['.job-description', 'main']
+      }
+    };
+
+    // Check if current host matches any known company career site
+    let companyConfig = null;
+    let matchedDomain = null;
+    
+    // Direct match first
+    if (COMPANY_CAREER_SELECTORS[host]) {
+      companyConfig = COMPANY_CAREER_SELECTORS[host];
+      matchedDomain = host;
+    } else {
+      // Partial match - check if host contains any known domain
+      for (const [domain, config] of Object.entries(COMPANY_CAREER_SELECTORS)) {
+        const baseDomain = domain.split('.').slice(-2).join('.');
+        if (host.includes(baseDomain.split('.')[0]) || host.endsWith(baseDomain)) {
+          companyConfig = config;
+          matchedDomain = domain;
+          break;
+        }
+      }
+    }
+
+    // ============ COMPANY-SPECIFIC EXTRACTION ============
+    if (companyConfig) {
+      result.detectedCompany = companyConfig.company;
+      result.companySource = 'domain';
+      result.company = companyConfig.company;
+      
+      // Use company-specific selectors
+      result.title = getText(...companyConfig.title);
+      result.location = getText(...companyConfig.location);
+      result.description = getText(...companyConfig.description);
+      
+      console.log(`[ATS Tailor] Detected ${companyConfig.company} career page, extracted: "${result.title}"`);
+    }
+
+    // ============ ATS PLATFORM SELECTORS ============
     // --- Greenhouse ---
-    if (host.includes('greenhouse')) {
+    if (!result.title && host.includes('greenhouse')) {
       result.title = getText('h1.app-title', '.job-title h1', 'h1[class*="job"]', '.posting-headline h1', 'h1');
-      result.company = getText('.company-name', '[class*="company"]') || document.querySelector('meta[property="og:site_name"]')?.content || '';
-      result.location = getText('.location', '[class*="location"]', '.posting-categories .location');
-      // Greenhouse uses #content or .content for full JD
-      result.description = getText('#content', '.content', '.posting-content', '.job-post-content', '[class*="description"]', 'main');
+      result.company = result.company || getText('.company-name', '[class*="company"]') || document.querySelector('meta[property="og:site_name"]')?.content || '';
+      result.location = result.location || getText('.location', '[class*="location"]', '.posting-categories .location');
+      result.description = result.description || getText('#content', '.content', '.posting-content', '.job-post-content', '[class*="description"]', 'main');
+      result.companySource = 'selector';
     }
     // --- Workday / myworkdayjobs ---
-    else if (host.includes('workday') || host.includes('myworkdayjobs')) {
+    else if (!result.title && (host.includes('workday') || host.includes('myworkdayjobs'))) {
       result.title = getText('[data-automation-id="jobPostingHeader"] h2', 'h2[data-automation-id="jobTitle"]', '[data-automation-id="jobPostingTitle"]', 'h1', 'h2');
-      result.company = getText('[data-automation-id="company"]') || document.querySelector('meta[property="og:site_name"]')?.content || '';
-      result.location = getText('[data-automation-id="locations"]', '[data-automation-id="location"]', '[class*="location"]');
-      // Workday stores JD in data-automation-id="jobPostingDescription" or a large container
+      result.company = result.company || getText('[data-automation-id="company"]') || document.querySelector('meta[property="og:site_name"]')?.content || '';
+      result.location = result.location || getText('[data-automation-id="locations"]', '[data-automation-id="location"]', '[class*="location"]');
       const descEl = document.querySelector('[data-automation-id="jobPostingDescription"]');
       if (descEl) {
         result.description = descEl.innerText || descEl.textContent || '';
       } else {
-        // Fallback: grab largest text block
         const main = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
         result.description = main.innerText?.substring(0, 15000) || '';
       }
+      result.companySource = 'selector';
     }
     // --- SmartRecruiters ---
-    else if (host.includes('smartrecruiters')) {
+    else if (!result.title && host.includes('smartrecruiters')) {
       result.title = getText('h1.job-title', 'h1[class*="title"]', 'h1');
-      result.company = getText('.company-name', '[class*="company"]');
-      result.location = getText('.job-location', '[class*="location"]');
-      result.description = getText('.job-description', '.job-sections', '[class*="description"]', 'main');
+      result.company = result.company || getText('.company-name', '[class*="company"]');
+      result.location = result.location || getText('.job-location', '[class*="location"]');
+      result.description = result.description || getText('.job-description', '.job-sections', '[class*="description"]', 'main');
+      result.companySource = 'selector';
     }
     // --- Workable ---
-    else if (host.includes('workable')) {
+    else if (!result.title && host.includes('workable')) {
       result.title = getText('h1[data-ui="job-title"]', 'h1');
-      result.company = getText('[data-ui="company-name"]', '.company-name');
-      result.location = getText('[data-ui="job-location"]', '.job-location');
-      result.description = getText('[data-ui="job-description"]', '.job-description', 'main');
+      result.company = result.company || getText('[data-ui="company-name"]', '.company-name');
+      result.location = result.location || getText('[data-ui="job-location"]', '.job-location');
+      result.description = result.description || getText('[data-ui="job-description"]', '.job-description', 'main');
+      result.companySource = 'selector';
+    }
+    // --- Lever ---
+    else if (!result.title && host.includes('lever.co')) {
+      result.title = getText('h2.posting-headline', '.posting-headline h2', 'h1', 'h2');
+      result.company = result.company || getText('.posting-categories .company', '.company-name') || document.querySelector('meta[property="og:site_name"]')?.content || '';
+      result.location = result.location || getText('.posting-categories .location', '.location');
+      result.description = result.description || getText('.posting-description', '.content', 'main');
+      result.companySource = 'selector';
+    }
+    // --- Ashby ---
+    else if (!result.title && host.includes('ashbyhq.com')) {
+      result.title = getText('h1.ashby-job-posting-heading', 'h1[class*="job"]', 'h1');
+      result.company = result.company || document.querySelector('meta[property="og:site_name"]')?.content || '';
+      result.location = result.location || getText('.ashby-job-posting-location', '[class*="location"]');
+      result.description = result.description || getText('.ashby-job-posting-description', '[class*="description"]', 'main');
+      result.companySource = 'selector';
     }
     // --- Teamtailor ---
-    else if (host.includes('teamtailor')) {
+    else if (!result.title && host.includes('teamtailor')) {
       result.title = getText('h1.job-title', 'h1');
-      result.company = getText('.company-name', '[class*="company"]') || document.querySelector('meta[property="og:site_name"]')?.content || '';
-      result.location = getText('.location', '[class*="location"]');
-      result.description = getText('.job-ad-body', '.job-body', '.description', 'main');
+      result.company = result.company || getText('.company-name', '[class*="company"]') || document.querySelector('meta[property="og:site_name"]')?.content || '';
+      result.location = result.location || getText('.location', '[class*="location"]');
+      result.description = result.description || getText('.job-ad-body', '.job-body', '.description', 'main');
+      result.companySource = 'selector';
     }
     // --- iCIMS ---
-    else if (host.includes('icims')) {
+    else if (!result.title && host.includes('icims')) {
       result.title = getText('.iCIMS_Header h1', 'h1.title', 'h1');
-      result.company = getText('.iCIMS_CompanyName', '[class*="company"]');
-      result.location = getText('.iCIMS_JobLocation', '[class*="location"]');
-      result.description = getText('.iCIMS_JobContent', '.iCIMS_MainWrapper', 'main');
+      result.company = result.company || getText('.iCIMS_CompanyName', '[class*="company"]');
+      result.location = result.location || getText('.iCIMS_JobLocation', '[class*="location"]');
+      result.description = result.description || getText('.iCIMS_JobContent', '.iCIMS_MainWrapper', 'main');
+      result.companySource = 'selector';
     }
     // --- Bullhorn ---
-    else if (host.includes('bullhorn')) {
+    else if (!result.title && host.includes('bullhorn')) {
       result.title = getText('h1.job-title', 'h1');
-      result.company = getText('.company-name');
-      result.location = getText('.job-location', '[class*="location"]');
-      result.description = getText('.job-description', '.job-details', 'main');
-    }
-    // --- Oracle / Taleo ---
-    else if (host.includes('oracle') || host.includes('taleo')) {
-      result.title = getText('h1.job-title', 'h1');
-      result.company = getText('.company-name') || document.querySelector('meta[property="og:site_name"]')?.content || '';
-      result.location = getText('.job-location', '[class*="location"]');
-      result.description = getText('.job-description', '#requisitionDescriptionInterface', 'main');
+      result.company = result.company || getText('.company-name');
+      result.location = result.location || getText('.job-location', '[class*="location"]');
+      result.description = result.description || getText('.job-description', '.job-details', 'main');
+      result.companySource = 'selector';
     }
     // --- Generic fallback ---
-    else {
+    else if (!result.title) {
       result.title = getText('h1') || document.title.split('|')[0].split('-')[0].trim();
-      result.company = document.querySelector('meta[property="og:site_name"]')?.content || '';
-      result.location = getText('[class*="location"]', '[data-testid*="location"]');
-      result.description = getText('main', 'article', '[class*="description"]', '#content', '[role="main"]');
+      result.company = result.company || document.querySelector('meta[property="og:site_name"]')?.content || '';
+      result.location = result.location || getText('[class*="location"]', '[data-testid*="location"]');
+      result.description = result.description || getText('main', 'article', '[class*="description"]', '#content', '[role="main"]');
+      result.companySource = 'auto';
     }
 
     // --- Fallback: Meta tags ---
@@ -3040,13 +3669,11 @@ function extractJobInfoFromPageInjected() {
       result.title = document.querySelector('meta[property="og:title"]')?.content || document.title;
     }
     if (!result.description || result.description.length < 100) {
-      // Try grabbing full body text as last resort
       const fallbackDesc = document.querySelector('meta[property="og:description"]')?.content ||
                            document.querySelector('meta[name="description"]')?.content || '';
       if (fallbackDesc.length > result.description.length) {
         result.description = fallbackDesc;
       }
-      // If still short, grab main content
       if (result.description.length < 200) {
         const mainEl = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
         result.description = (mainEl.innerText || mainEl.textContent || '').substring(0, 15000);
@@ -3058,11 +3685,13 @@ function extractJobInfoFromPageInjected() {
     for (const script of jsonLdScripts) {
       try {
         let data = JSON.parse(script.textContent);
-        // Handle arrays
         if (Array.isArray(data)) data = data.find(d => d['@type'] === 'JobPosting');
         if (data?.['@type'] === 'JobPosting') {
           if (!result.title && data.title) result.title = data.title;
-          if (!result.company && data.hiringOrganization?.name) result.company = data.hiringOrganization.name;
+          if (!result.company && data.hiringOrganization?.name) {
+            result.company = data.hiringOrganization.name;
+            result.companySource = 'jsonld';
+          }
           if (!result.location) {
             const loc = data.jobLocation;
             if (loc?.address?.addressLocality) {
@@ -3073,7 +3702,6 @@ function extractJobInfoFromPageInjected() {
             }
           }
           if ((!result.description || result.description.length < 200) && data.description) {
-            // Strip HTML from structured data description
             const temp = document.createElement('div');
             temp.innerHTML = data.description;
             const cleanDesc = temp.textContent || temp.innerText || '';
@@ -3086,29 +3714,24 @@ function extractJobInfoFromPageInjected() {
 
     // --- Additional Company Fallbacks ---
     if (!result.company || result.company.toLowerCase() === 'company' || result.company.length < 2) {
-      // Try to extract from title like "Senior Engineer at Bugcrowd"
       const titleMatch = (result.title || document.title || '').match(/\bat\s+([A-Z][A-Za-z0-9\s&.-]+?)(?:\s*[-|]|\s*$)/i);
       if (titleMatch) result.company = titleMatch[1].trim();
     }
     if (!result.company || result.company.toLowerCase() === 'company' || result.company.length < 2) {
-      // Try URL subdomain (e.g., bugcrowd.greenhouse.io → Bugcrowd)
       const subdomain = host.split('.')[0];
       if (subdomain && subdomain.length > 2 && !['www', 'apply', 'jobs', 'careers', 'boards', 'job-boards'].includes(subdomain.toLowerCase())) {
         result.company = subdomain.charAt(0).toUpperCase() + subdomain.slice(1);
       }
     }
     if (!result.company || result.company.toLowerCase() === 'company' || result.company.length < 2) {
-      // Look for company logo alt text
       const logoEl = document.querySelector('[class*="logo"] img, [class*="company"] img, header img');
       if (logoEl?.alt && logoEl.alt.length > 2 && logoEl.alt.length < 50) {
         result.company = logoEl.alt.replace(/\s*logo\s*/i, '').trim();
       }
     }
-    // Sanitize company name
     if (result.company) {
       result.company = result.company.replace(/\s*(careers|jobs|hiring|apply|work|join)\s*$/i, '').trim();
     }
-    // No fallback - leave empty if company not found
     if (!result.company || result.company.toLowerCase() === 'company' || result.company.length < 2) {
       result.company = '';
     }
@@ -3118,6 +3741,15 @@ function extractJobInfoFromPageInjected() {
     result.company = result.company.replace(/\s+/g, ' ').trim().substring(0, 100);
     result.location = result.location.replace(/\s+/g, ' ').trim().substring(0, 100);
     result.description = result.description.replace(/\s+/g, ' ').trim().substring(0, 15000);
+
+    // Strip "Remote" from location
+    result.location = result.location
+      .replace(/\b(remote|work\s*from\s*home|wfh|virtual|fully\s*remote)\b/gi, '')
+      .replace(/\s*[\(\[]?\s*(remote|wfh|virtual)\s*[\)\]]?\s*/gi, '')
+      .replace(/\s*(\||,|\/|-)\s*$/g, '')
+      .replace(/^\s*(\||,|\/|-)\s*/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
 
   } catch (error) {
     console.error('[ATS Tailor] Extraction error:', error);

@@ -73,13 +73,28 @@
       <div class="job-card" id="jobCard">
         <div class="job-header">
           <span class="job-label">Detected Job</span>
-          <button id="refreshJob" class="btn-icon" title="Refresh">🔄</button>
+          <div class="job-header-actions">
+            <span id="companyIndicator" class="company-indicator hidden" title="Company detection source">🏢</span>
+            <button id="editJobTitle" class="btn-icon btn-edit hidden" title="Edit job title">✏️</button>
+            <button id="refreshJob" class="btn-icon" title="Refresh">🔄</button>
+          </div>
         </div>
-        <h3 id="jobTitle" class="job-title">Scanning page...</h3>
+        <div class="job-title-row">
+          <h3 id="jobTitle" class="job-title">Scanning page...</h3>
+          <input type="text" id="jobTitleInput" class="job-title-input hidden" placeholder="Enter job title">
+        </div>
         <p id="jobCompany" class="job-company"></p>
         <p id="jobLocation" class="job-location"></p>
         <span id="noJobBadge" class="no-job-badge hidden">No job detected</span>
       </div>
+
+      <!-- History Panel -->
+      <details class="history-panel" id="historyPanel">
+        <summary class="history-header">📜 Recent Tailored Jobs</summary>
+        <div class="history-list" id="historyList">
+          <p class="history-empty">No recent jobs. Tailor a job to see history.</p>
+        </div>
+      </details>
 
       <!-- Tailor Actions -->
       <div class="actions-card">

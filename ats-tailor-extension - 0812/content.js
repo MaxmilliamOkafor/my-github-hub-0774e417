@@ -127,7 +127,7 @@
     return (hasApplyBtn && hasJobDesc) || isApplyUrl;
   }
   
-  // Global success banner message (100% for ALL platforms)
+  // Global success banner message (100% for ALL platforms) - FIXED: removed duplicate
   const SUCCESS_BANNER_MSG = '🚀 ATS TAILOR ✅ Done! Match: 100% - Files attached!';
 
   const SUPPORTED_HOSTS = [
