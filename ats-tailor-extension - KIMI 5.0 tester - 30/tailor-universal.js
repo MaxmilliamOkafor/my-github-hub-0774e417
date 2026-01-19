@@ -25,7 +25,7 @@
     'ownership', 'responsibility', 'commitment', 'passion', 'dedication',
     'motivation', 'proactive', 'self-starter', 'detail-oriented', 'problem-solving',
     'critical thinking', 'time management', 'adaptability', 'flexibility',
-    'creativity', 'innovation', 'interpersonal', 'organizational', 'multitasking',
+    'creativity', 'innovation', 'interpersonal', 'organisational', 'multitasking',
     'prioritization', 'reliability', 'accountability', 'integrity', 'professionalism',
     'work ethic', 'positive attitude', 'enthusiasm', 'driven', 'dynamic',
     'results-oriented', 'goal-oriented', 'mission', 'continuous learning',
@@ -40,27 +40,27 @@
     // Data/Analytics keywords
     data: ['python', 'sql', 'pandas', 'numpy', 'data', 'analytics', 'tableau', 'power bi', 'etl', 'warehouse', 'bigquery'],
     dataContexts: ['data', 'analytics', 'model', 'pipeline', 'etl', 'report', 'dashboard', 'metric', 'insight', 'analysis', 'query', 'database'],
-    
+
     // Cloud/Infrastructure keywords
     cloud: ['aws', 'azure', 'gcp', 'cloud', 'kubernetes', 'docker', 'terraform', 'devops', 'ci/cd', 'jenkins'],
     cloudContexts: ['deploy', 'infrastructure', 'cloud', 'migration', 'scale', 'server', 'container', 'pipeline', 'automat'],
-    
+
     // Frontend keywords
     frontend: ['react', 'typescript', 'javascript', 'vue', 'angular', 'frontend', 'css', 'html', 'nextjs', 'redux'],
     frontendContexts: ['frontend', 'ui', 'interface', 'component', 'web', 'user experience', 'responsive', 'design'],
-    
+
     // Backend keywords
     backend: ['node', 'python', 'java', 'go', 'rust', 'api', 'rest', 'graphql', 'microservice', 'backend'],
     backendContexts: ['backend', 'api', 'server', 'endpoint', 'service', 'integration', 'database', 'performance'],
-    
+
     // ML/AI keywords
     ml: ['machine learning', 'ml', 'ai', 'tensorflow', 'pytorch', 'deep learning', 'nlp', 'llm', 'genai'],
     mlContexts: ['model', 'training', 'prediction', 'algorithm', 'neural', 'ai', 'ml', 'learning', 'recommendation'],
-    
+
     // Agile/Management keywords
     agile: ['agile', 'scrum', 'kanban', 'jira', 'confluence', 'sprint', 'product', 'stakeholder'],
     agileContexts: ['sprint', 'backlog', 'planning', 'roadmap', 'delivery', 'milestone', 'team', 'stakeholder', 'priorit'],
-    
+
     // Blockchain/Web3 keywords
     blockchain: ['blockchain', 'ethereum', 'solidity', 'smart contract', 'web3', 'defi', 'nft', 'crypto'],
     blockchainContexts: ['blockchain', 'contract', 'decentralized', 'transaction', 'ledger', 'token', 'chain'],
@@ -109,7 +109,7 @@
               sectionOrder.push(currentSection);
             }
           }
-          
+
           currentSection = sectionName;
           currentContent = [line];
           foundSection = true;
@@ -144,15 +144,15 @@
    */
   function categorizeKeywords(keywords) {
     const categorized = {};
-    
+
     keywords.forEach(kw => {
       const kwLower = kw.toLowerCase();
       let contexts = ['implement', 'develop', 'build', 'create', 'manage', 'led', 'designed']; // Default contexts
-      
+
       // Check each category
       for (const [category, categoryKeywords] of Object.entries(KEYWORD_CONTEXT_MAP)) {
         if (category.endsWith('Contexts')) continue;
-        
+
         if (categoryKeywords.some(ck => kwLower.includes(ck) || ck.includes(kwLower))) {
           const contextKey = category + 'Contexts';
           if (KEYWORD_CONTEXT_MAP[contextKey]) {
@@ -161,39 +161,39 @@
           }
         }
       }
-      
+
       categorized[kw] = contexts;
     });
-    
+
     return categorized;
   }
 
   /**
    * IMPROVED: Inject keyword NATURALLY at the END of bullet points only
-   * Strategy: Append keywords using "leveraging/utilizing" phrases - NO REWRITING
+   * Strategy: Append keywords using "leveraging/utilising" phrases - NO REWRITING
    * This preserves the original bullet content while adding ATS keywords
    */
   function injectKeywordNaturally(bulletPrefix, bulletText, keyword) {
     const text = bulletText.trim();
     const kwLower = keyword.toLowerCase();
-    
+
     // Check if keyword already exists - if so, return unchanged
     if (text.toLowerCase().includes(kwLower)) {
       return bulletPrefix + text;
     }
-    
+
     // Natural injection phrases - UK spelling for readability
     const phrases = ['leveraging', 'utilising', 'through', 'with', 'via'];
     const getPhrase = () => phrases[Math.floor(Math.random() * phrases.length)];
-    
+
     // ONLY append to end - never modify the original bullet content
     // This preserves the candidate's real achievements and metrics
-    
+
     // If ends with period, insert before period
     if (text.endsWith('.')) {
       return `${bulletPrefix}${text.slice(0, -1)}, ${getPhrase()} ${keyword}.`;
     }
-    
+
     // Otherwise append
     return `${bulletPrefix}${text}, ${getPhrase()} ${keyword}.`;
   }
@@ -210,7 +210,7 @@
     const summaryLower = summary.toLowerCase();
 
     const missingKeywords = keywords.filter(kw => 
-      !new RegExp(`\\b${escapeRegex(kw)}\\b`, 'i').test(summaryLower)
+      !new RegExp(`\b${escapeRegex(kw)}\b`, 'i').test(summaryLower)
     ).slice(0, CONFIG.MAX_KEYWORDS_SUMMARY);
 
     if (missingKeywords.length === 0) {
@@ -245,14 +245,14 @@
 
     const injected = [];
     let experienceText = experience;
-    
+
     // Track keyword usage counts for repetition targeting
     const keywordUsageCount = new Map();
-    
+
     // Determine priority for each keyword
     const highPrioritySet = new Set((priorityInfo?.highPriority || []).map(k => k.toLowerCase()));
     const mediumPrioritySet = new Set((priorityInfo?.mediumPriority || []).map(k => k.toLowerCase()));
-    
+
     // Get target count for each keyword based on priority
     const getTargetCount = (keyword) => {
       const kwLower = keyword.toLowerCase();
@@ -263,15 +263,15 @@
       }
       return 1; // Low priority: 1 occurrence is enough
     };
-    
+
     // Count existing keyword occurrences in experience
     const experienceLower = experience.toLowerCase();
     keywords.forEach(kw => {
-      const regex = new RegExp(`\\b${escapeRegex(kw)}\\b`, 'gi');
+      const regex = new RegExp(`\b${escapeRegex(kw)}\b`, 'gi');
       const matches = experienceLower.match(regex);
       keywordUsageCount.set(kw, matches ? matches.length : 0);
     });
-    
+
     // Get ALL keywords that need injection (no limit)
     const keywordsNeedingMore = keywords.filter(kw => {
       const current = keywordUsageCount.get(kw) || 0;
@@ -284,34 +284,28 @@
     }
 
     console.log('[TailorUniversal] Keywords needing injection:', keywordsNeedingMore.length);
-    
+
     // Split into lines and find all bullets
     const lines = experienceText.split('\n');
     const bulletPattern = /^(\s*[-•●○◦▪▸►]\s*)(.+)$/;
-    
+
     // Known company names to protect from modification
     const PROTECTED_COMPANIES = ['meta', 'solimhealth', 'solim', 'accenture', 'citigroup', 'citi', 'google', 'amazon', 'microsoft', 'apple', 'facebook', 'netflix', 'stripe', 'salesforce', 'ibm', 'oracle', 'adobe'];
-    
+
     // Get all bullet line indices (excluding header lines)
-    // PERMANENT FIX: Enhanced header detection to protect company/title/date lines
     const bulletIndices = [];
     lines.forEach((line, idx) => {
       const trimmed = line.trim();
-      // Skip header lines - PROTECT company names, titles with dates, and date lines
+      // Skip header lines (contain | and company names)
       const lineHasPipe = trimmed.includes('|');
-      const lineHasEnDash = trimmed.includes('–');
       const lineHasCompany = PROTECTED_COMPANIES.some(c => trimmed.toLowerCase().includes(c));
-      const isHeader = (lineHasPipe && lineHasCompany) || 
-                      (lineHasEnDash && /\d{4}/.test(trimmed)) ||  // Title – 2023 – Present
-                      /^[A-Z][A-Za-z\s&.,()]+$/.test(trimmed) ||   // Company name only line
-                      /^\d{4}\s*[-–]\s*(Present|\d{4})/i.test(trimmed) ||
-                      /^.+\s+–\s+\d{4}\s*–\s*(Present|\d{4})$/i.test(trimmed); // Title – 2023 – Present format
-      
+      const isHeader = (lineHasPipe && lineHasCompany) || /^\d{4}\s*[-–]\s*(Present|\d{4})/i.test(trimmed);
+
       if (bulletPattern.test(line) && line.length > 30 && !isHeader) {
         bulletIndices.push(idx);
       }
     });
-    
+
     if (bulletIndices.length === 0) {
       console.warn('[TailorUniversal] No suitable bullets found for keyword injection');
       return { enhanced: experience, injected: [] };
@@ -319,36 +313,36 @@
 
     // AGGRESSIVE INJECTION LOOP - iterate through keywords and inject into bullets
     let bulletCursor = 0;
-    
+
     for (const keyword of keywordsNeedingMore) {
       const targetCount = getTargetCount(keyword);
       let currentCount = keywordUsageCount.get(keyword) || 0;
-      
+
       // Inject until we reach target count
       while (currentCount < targetCount && bulletCursor < bulletIndices.length * 3) {
         // Cycle through bullets (wrap around if needed)
         const bulletIdx = bulletIndices[bulletCursor % bulletIndices.length];
         const line = lines[bulletIdx];
         const match = line.match(bulletPattern);
-        
+
         if (match) {
           const bulletPrefix = match[1];
           const bulletText = match[2];
-          
+
           // Check if keyword already in this specific bullet
-          if (!new RegExp(`\\b${escapeRegex(keyword)}\\b`, 'i').test(bulletText.toLowerCase())) {
+          if (!new RegExp(`\b${escapeRegex(keyword)}\b`, 'i').test(bulletText.toLowerCase())) {
             // Inject keyword
             const enhanced = injectKeywordNaturally(bulletPrefix, bulletText, keyword);
             lines[bulletIdx] = enhanced;
-            
+
             currentCount++;
             keywordUsageCount.set(keyword, currentCount);
             injected.push(keyword);
           }
         }
-        
+
         bulletCursor++;
-        
+
         // Safety: don't loop forever
         if (bulletCursor > bulletIndices.length * 5) break;
       }
@@ -358,27 +352,27 @@
     for (const keyword of keywordsNeedingMore) {
       const kwLower = keyword.toLowerCase();
       if (!highPrioritySet.has(kwLower)) continue;
-      
+
       const targetCount = CONFIG.HIGH_PRIORITY_MIN_COUNT;
       let currentCount = keywordUsageCount.get(keyword) || 0;
-      
+
       if (currentCount >= targetCount) continue;
-      
+
       // Force inject into any bullet that doesn't have it
       for (let i = 0; i < bulletIndices.length && currentCount < targetCount; i++) {
         const bulletIdx = bulletIndices[i];
         const line = lines[bulletIdx];
         const match = line.match(bulletPattern);
-        
+
         if (!match) continue;
-        
+
         const bulletPrefix = match[1];
         const bulletText = match[2];
-        
-        if (new RegExp(`\\b${escapeRegex(keyword)}\\b`, 'i').test(bulletText.toLowerCase())) {
+
+        if (new RegExp(`\b${escapeRegex(keyword)}\b`, 'i').test(bulletText.toLowerCase())) {
           continue; // Already has keyword
         }
-        
+
         lines[bulletIdx] = injectKeywordNaturally(bulletPrefix, bulletText, keyword);
         currentCount++;
         keywordUsageCount.set(keyword, currentCount);
@@ -390,26 +384,26 @@
     for (const keyword of keywordsNeedingMore) {
       const kwLower = keyword.toLowerCase();
       if (!mediumPrioritySet.has(kwLower)) continue;
-      
+
       const targetCount = CONFIG.MEDIUM_PRIORITY_MIN_COUNT;
       let currentCount = keywordUsageCount.get(keyword) || 0;
-      
+
       if (currentCount >= targetCount) continue;
-      
+
       for (let i = 0; i < bulletIndices.length && currentCount < targetCount; i++) {
         const bulletIdx = bulletIndices[i];
         const line = lines[bulletIdx];
         const match = line.match(bulletPattern);
-        
+
         if (!match) continue;
-        
+
         const bulletPrefix = match[1];
         const bulletText = match[2];
-        
-        if (new RegExp(`\\b${escapeRegex(keyword)}\\b`, 'i').test(bulletText.toLowerCase())) {
+
+        if (new RegExp(`\b${escapeRegex(keyword)}\b`, 'i').test(bulletText.toLowerCase())) {
           continue;
         }
-        
+
         lines[bulletIdx] = injectKeywordNaturally(bulletPrefix, bulletText, keyword);
         currentCount++;
         keywordUsageCount.set(keyword, currentCount);
@@ -431,17 +425,17 @@
 
     // CRITICAL: Filter out soft skills before processing
     const technicalKeywords = filterTechnicalKeywords(keywords);
-    
+
     if (technicalKeywords.length === 0) {
       return { enhanced: skills || '', injected: [], created: false };
     }
 
     const injected = [];
     const skillsLower = (skills || '').toLowerCase();
-    
+
     // Get missing technical keywords
     const missingKeywords = technicalKeywords.filter(kw => 
-      !new RegExp(`\\b${escapeRegex(kw)}\\b`, 'i').test(skillsLower)
+      !new RegExp(`\b${escapeRegex(kw)}\b`, 'i').test(skillsLower)
     ).slice(0, CONFIG.MAX_KEYWORDS_SKILLS);
 
     if (missingKeywords.length === 0) {
@@ -495,7 +489,7 @@
 
     let keywordList = Array.isArray(keywords) ? keywords : (keywords?.all || []);
     keywordList = filterTechnicalKeywords(keywordList);
-    
+
     if (keywordList.length === 0) {
       return {
         tailoredCV: cvText,
@@ -591,32 +585,32 @@
 
   function updateLocation(header, location) {
     if (!header || !location) return header || '';
-    
+
     const locationPatterns = [
       /(?:Location|Based in|Located in)[:\s]+[^\n]+/gi,
       /(?:[A-Z][a-z]+,\s+[A-Z]{2})\s*(?:\d{5})?/g,
       /(?:[A-Z][a-z]+,\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/g
     ];
-    
+
     let updated = header;
     locationPatterns.forEach(pattern => {
       if (pattern.test(updated)) {
         updated = updated.replace(pattern, location);
       }
     });
-    
+
     return updated;
   }
 
   function escapeRegex(str) {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return str.replace(/[.*+?^${}()|[\]\]/g, '\\$&');
   }
 
   function validateTailoring(cvText, keywords) {
     const match = global.ReliableExtractor 
       ? global.ReliableExtractor.matchKeywords(cvText, keywords)
       : { matchScore: 0, matched: [], missing: keywords };
-    
+
     return {
       score: match.matchScore,
       keywordCount: match.matched?.length || 0,
@@ -627,7 +621,7 @@
   }
 
   // ============ EXPORTS ============
-  
+
   global.TailorUniversal = {
     tailorCV,
     parseCV,

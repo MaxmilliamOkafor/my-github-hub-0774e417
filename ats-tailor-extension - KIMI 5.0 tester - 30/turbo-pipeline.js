@@ -18,7 +18,7 @@
     TOTAL: 0.9,               // 900ms total pipeline - KIMI K2 BLAZING
     FULL_FLOW_TARGET: 50000   // 50 seconds total for user-facing flow
   };
-  
+
   // Performance monitoring
   const PERF_LOG = [];
   const logPerf = (step, time) => {
@@ -62,7 +62,7 @@
   async function turboExtractKeywords(jobDescription, options = {}) {
     const startTime = performance.now();
     const { jobUrl = '', maxKeywords = 50 } = options;
-    
+
     if (!jobDescription || jobDescription.length < 50) {
       return { all: [], highPriority: [], mediumPriority: [], lowPriority: [], workExperience: [], total: 0, timing: 0 };
     }
@@ -84,7 +84,7 @@
     const timing = performance.now() - startTime;
     logPerf('extract_fresh', timing);
     console.log(`[TurboPipeline] ⚡ TOP 1% Keywords: ${result.total} in ${timing.toFixed(0)}ms`);
-    
+
     return { ...result, timing, fromCache: false };
   }
 
@@ -106,7 +106,7 @@
       'ownership','responsibility','commitment','passion','dedication','motivation',
       'self-starter','detail-oriented','problem-solving','critical thinking',
       'time management','adaptability','flexibility','creativity','innovation',
-      'interpersonal','organizational','multitasking','prioritization','reliability',
+      'interpersonal','organisational','multitasking','prioritization','reliability',
       'accountability','integrity','professionalism','work ethic','positive attitude',
       'enthusiasm','driven','dynamic','results-oriented','goal-oriented','mission',
       'continuous learning','debugging','testing','documentation','system integration',
@@ -156,7 +156,7 @@
       'natural language processing', 'computer vision', 'artificial intelligence',
       '.net core', 'software development', 'full-stack development'
     ];
-    
+
     const textLower = text.toLowerCase();
     multiWordPatterns.forEach(phrase => {
       if (textLower.includes(phrase)) {
@@ -195,22 +195,22 @@
   function distributeAllKeywords(cvText, keywords, options = {}) {
     const startTime = performance.now();
     const { maxBulletsPerRole = 10, highMinMentions = 3, highMaxMentions = 5, medMinMentions = 2, medMaxMentions = 4, lowMinMentions = 1, lowMaxMentions = 2 } = options;
-    
+
     const highPriorityKeywords = keywords.highPriority || [];
     const mediumPriorityKeywords = keywords.mediumPriority || [];
     const lowPriorityKeywords = keywords.lowPriority || [];
     const allKeywords = keywords.all || [...highPriorityKeywords, ...mediumPriorityKeywords, ...lowPriorityKeywords];
-    
+
     if (!cvText || allKeywords.length === 0) {
       return { tailoredCV: cvText, distributionStats: {}, timing: 0 };
     }
 
     let tailoredCV = cvText;
     const stats = {};
-    
+
     // Initialize stats: count existing mentions of each keyword with priority info
     allKeywords.forEach(kw => {
-      const regex = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      const regex = new RegExp(`\b${kw.replace(/[.*+?^${}()|[\]\]/g, '\\$&')}\b`, 'gi');
       const existingMentions = (cvText.match(regex) || []).length;
       const priority = highPriorityKeywords.includes(kw) ? 'high' : 
                        mediumPriorityKeywords.includes(kw) ? 'medium' : 'low';
@@ -230,9 +230,9 @@
     const afterExp = tailoredCV.substring(expStart);
     const nextSectionMatch = /\n(SKILLS|EDUCATION|CERTIFICATIONS|PROJECTS|TECHNICAL\s*PROFICIENCIES)[\s:]*\n/im.exec(afterExp);
     const expEnd = nextSectionMatch ? expStart + nextSectionMatch.index : tailoredCV.length;
-    
+
     let experienceSection = tailoredCV.substring(expStart, expEnd);
-    
+
     // Role-based distribution targets (more recent roles get more keywords)
     const roleTargets = [
       { name: 'Role 1 (Most Recent)', maxKeywordsPerBullet: 3, maxBullets: 6 },
@@ -240,7 +240,7 @@
       { name: 'Role 3', maxKeywordsPerBullet: 2, maxBullets: 4 },
       { name: 'Role 4', maxKeywordsPerBullet: 2, maxBullets: 3 }
     ];
-    
+
     // Natural injection phrases (UK spelling for authenticity)
     const phrases = [
       'leveraging', 'utilising', 'implementing', 'applying', 'with expertise in',
@@ -250,53 +250,49 @@
 
     // Known company names to protect from modification
     const PROTECTED_COMPANIES = ['meta', 'solimhealth', 'solim', 'accenture', 'citigroup', 'citi', 'google', 'amazon', 'microsoft', 'apple', 'facebook', 'netflix', 'stripe', 'salesforce', 'ibm', 'oracle', 'adobe'];
-    
+
     // Split into lines and identify role boundaries
     const lines = experienceSection.split('\n');
     let roleIndex = 0;
     let bulletCountInRole = 0;
     let modifiedLines = [];
-    
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const trimmed = line.trim();
-      
-      // Detect role header (Company or Title – Date patterns)
-      // PERMANENT FIX: PROTECT ALL HEADERS - never modify lines containing company names, dates, or en dashes
+
+      // Detect role header (Company | Title | Date or similar patterns)
+      // PROTECT HEADERS: Never modify lines containing company names and pipe separators
       const lineHasPipe = trimmed.includes('|');
-      const lineHasEnDash = trimmed.includes('–');
       const lineHasCompany = PROTECTED_COMPANIES.some(c => trimmed.toLowerCase().includes(c));
       const isRoleHeader = (lineHasPipe && lineHasCompany) ||
-                          (lineHasEnDash && /\d{4}/.test(trimmed)) ||  // Title – YYYY – YYYY format
-                          /^[A-Z][A-Za-z\s&.,()]+$/.test(trimmed) ||   // Company name only line
-                          /^[A-Z][A-Za-z\s&.,]+\s*[–|]/.test(trimmed) || 
+                          /^[A-Z][A-Za-z\s&.,]+\s*\|/.test(trimmed) || 
                           /^(Meta|Solim|Accenture|Citigroup|Citi|Google|Amazon|Microsoft|Apple|Facebook|Netflix|Stripe|Salesforce|IBM|Oracle|Adobe)/i.test(trimmed) ||
-                          /^\d{4}\s*[-–]\s*(Present|\d{4})/i.test(trimmed) || // Date lines
-                          /^.+\s+–\s+\d{4}\s*–\s*(Present|\d{4})$/i.test(trimmed); // Title – 2023 – Present format
-      
+                          /^\d{4}\s*[-–]\s*(Present|\d{4})/i.test(trimmed); // Date lines
+
       if (isRoleHeader) {
         roleIndex++;
         bulletCountInRole = 0;
         modifiedLines.push(line); // PRESERVE HEADER UNCHANGED
         continue;
       }
-      
-      // Process bullet points ONLY
+
+      // Process bullet points ONLY - skip headers and non-bullet lines
       const isBullet = /^[-•*▪▸]\s/.test(trimmed) || /^▪\s/.test(trimmed);
       if (!isBullet) {
         modifiedLines.push(line); // PRESERVE NON-BULLET LINES UNCHANGED
         continue;
       }
-      
+
       bulletCountInRole++;
       const roleConfig = roleTargets[Math.min(roleIndex, roleTargets.length - 1)];
-      
+
       // Skip if we've processed enough bullets for this role
       if (bulletCountInRole > roleConfig.maxBullets) {
         modifiedLines.push(line);
         continue;
       }
-      
+
       // Find ALL keywords (high, medium, low) that need more mentions (below minMentions target)
       const needsMore = allKeywords.filter(kw => {
         const current = stats[kw].mentions;
@@ -304,30 +300,30 @@
         const inLine = line.toLowerCase().includes(kw.toLowerCase());
         return current < target && !inLine;
       });
-      
+
       if (needsMore.length === 0) {
         modifiedLines.push(line);
         continue;
       }
-      
+
       // Prioritize high > medium > low when selecting keywords to inject
       const highToInject = needsMore.filter(kw => stats[kw].priority === 'high');
       const medToInject = needsMore.filter(kw => stats[kw].priority === 'medium');
       const lowToInject = needsMore.filter(kw => stats[kw].priority === 'low');
-      
+
       // Inject up to maxKeywordsPerBullet, prioritizing high, then medium, then low
       const toInject = [
         ...highToInject.slice(0, roleConfig.maxKeywordsPerBullet),
         ...medToInject.slice(0, Math.max(0, roleConfig.maxKeywordsPerBullet - highToInject.length)),
         ...lowToInject.slice(0, Math.max(0, roleConfig.maxKeywordsPerBullet - highToInject.length - medToInject.length))
       ].slice(0, roleConfig.maxKeywordsPerBullet);
-      
+
       let enhanced = line;
-      
+
       toInject.forEach(kw => {
         // Only inject if we haven't exceeded maxMentions for this keyword
         if (stats[kw].mentions >= stats[kw].max) return;
-        
+
         const phrase = getPhrase();
         if (enhanced.endsWith('.')) {
           enhanced = enhanced.slice(0, -1) + `, ${phrase} ${kw}.`;
@@ -338,7 +334,7 @@
         stats[kw].added++;
         stats[kw].roles.push(roleConfig.name);
       });
-      
+
       modifiedLines.push(enhanced);
     }
 
@@ -352,10 +348,10 @@
       .slice(0, 10)
       .join(', ');
     console.log(`[TurboPipeline] All Keywords distribution in ${timing.toFixed(0)}ms: ${summary}${Object.keys(stats).length > 10 ? '...' : ''}`);
-    
+
     return { tailoredCV, distributionStats: stats, timing };
   }
-  
+
   // Backward compatibility alias
   function distributeHighPriorityKeywords(cvText, highPriorityKeywords, options = {}) {
     return distributeAllKeywords(cvText, { highPriority: highPriorityKeywords, all: highPriorityKeywords }, options);
@@ -373,12 +369,12 @@
       warnings: [],
       density: { total: 0, perSection: {} }
     };
-    
+
     const allKeywords = keywords.all || [];
     const highPriority = new Set((keywords.highPriority || []).map(k => k.toLowerCase()));
     const mediumPriority = new Set((keywords.mediumPriority || []).map(k => k.toLowerCase()));
     const lowPriority = new Set((keywords.lowPriority || []).map(k => k.toLowerCase()));
-    
+
     // Section boundaries for location tracking
     const sections = {
       'SUMMARY': /professional\s*summary|summary|profile|objective/i,
@@ -387,32 +383,32 @@
       'EDUCATION': /education|academic/i,
       'CERTIFICATIONS': /certifications?|licenses?/i
     };
-    
+
     const cvLower = tailoredCV.toLowerCase();
     const originalLower = originalCV.toLowerCase();
-    
+
     // Track each keyword
     allKeywords.forEach(kw => {
       const kwLower = kw.toLowerCase();
-      const regex = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-      
+      const regex = new RegExp(`\b${kw.replace(/[.*+?^${}()|[\]\]/g, '\\$&')}\b`, 'gi');
+
       const originalMatches = (originalLower.match(regex) || []).length;
       const tailoredMatches = (cvLower.match(regex) || []).length;
       const addedCount = tailoredMatches - originalMatches;
-      
+
       // Determine priority
       let priority = 'low';
       if (highPriority.has(kwLower)) priority = 'high';
       else if (mediumPriority.has(kwLower)) priority = 'medium';
-      
+
       // Target mentions based on best practices: 3-5 for high/medium, 1-2 for low
       const targetMin = priority === 'low' ? 1 : 3;
       const targetMax = priority === 'low' ? 2 : 5;
-      
+
       // Find locations in CV
       const locations = [];
       let match;
-      const globalRegex = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      const globalRegex = new RegExp(`\b${kw.replace(/[.*+?^${}()|[\]\]/g, '\\$&')}\b`, 'gi');
       while ((match = globalRegex.exec(tailoredCV)) !== null) {
         // Determine which section this match is in
         let section = 'OTHER';
@@ -425,7 +421,7 @@
         const context = tailoredCV.substring(Math.max(0, match.index - 30), Math.min(tailoredCV.length, match.index + kw.length + 30)).replace(/\n/g, ' ');
         locations.push({ position: match.index, section, context: `...${context}...` });
       }
-      
+
       report.keywords[kw] = {
         priority,
         originalCount: originalMatches,
@@ -437,32 +433,32 @@
         overDensity: tailoredMatches > targetMax,
         locations
       };
-      
+
       // Update summary
       report.summary.total++;
       if (priority === 'high') report.summary.high++;
       else if (priority === 'medium') report.summary.medium++;
       else report.summary.low++;
-      
+
       if (tailoredMatches < targetMin) {
         report.summary.missing.push({ keyword: kw, priority, have: tailoredMatches, need: targetMin });
       }
-      
+
       if (tailoredMatches > targetMax) {
         report.warnings.push(`⚠️ "${kw}" appears ${tailoredMatches}x (max ${targetMax}) - risk of over-stuffing`);
       }
     });
-    
+
     // Calculate density
     const wordCount = tailoredCV.split(/\s+/).length;
     const totalKeywordOccurrences = Object.values(report.keywords).reduce((sum, k) => sum + k.finalCount, 0);
     report.density.total = ((totalKeywordOccurrences / wordCount) * 100).toFixed(2);
-    
+
     // Density warning (>5% is risky)
     if (parseFloat(report.density.total) > 5) {
       report.warnings.push(`⚠️ Keyword density ${report.density.total}% exceeds 5% threshold - may trigger ATS spam filters`);
     }
-    
+
     // Section breakdown
     for (const [secName] of Object.entries(sections)) {
       const sectionKeywords = Object.entries(report.keywords)
@@ -470,29 +466,29 @@
         .map(([k, v]) => ({ keyword: k, count: v.locations.filter(l => l.section === secName).length }));
       report.sections[secName] = sectionKeywords;
     }
-    
+
     report.timing = performance.now() - startTime;
-    
+
     // Console output for debugging
     console.log('\n═══════════════════════════════════════════════════════════════');
     console.log('📊 KEYWORD COVERAGE REPORT');
     console.log('═══════════════════════════════════════════════════════════════');
     console.log(`Total Keywords: ${report.summary.total} (H:${report.summary.high} M:${report.summary.medium} L:${report.summary.low})`);
     console.log(`Keyword Density: ${report.density.total}%`);
-    
+
     console.log('\n✅ KEYWORDS MEETING TARGET (3-5x high/med, 1-2x low):');
     Object.entries(report.keywords)
       .filter(([_, v]) => v.meetsTarget)
       .forEach(([k, v]) => console.log(`  ✓ ${k} (${v.priority}): ${v.finalCount}x [${v.locations.map(l => l.section).join(', ')}]`));
-    
+
     console.log('\n❌ KEYWORDS BELOW TARGET:');
     report.summary.missing.forEach(m => console.log(`  ✗ ${m.keyword} (${m.priority}): ${m.have}x (need ${m.need})`));
-    
+
     if (report.warnings.length > 0) {
       console.log('\n⚠️ WARNINGS:');
       report.warnings.forEach(w => console.log(`  ${w}`));
     }
-    
+
     console.log('\n📍 SECTION BREAKDOWN:');
     for (const [sec, kws] of Object.entries(report.sections)) {
       if (kws.length > 0) {
@@ -500,14 +496,14 @@
       }
     }
     console.log('═══════════════════════════════════════════════════════════════\n');
-    
+
     return report;
   }
 
   // ============ TURBO CV TAILORING (≤50ms - LAZYAPPLY 3X) ============
   async function turboTailorCV(cvText, keywords, options = {}) {
     const startTime = performance.now();
-    
+
     if (!cvText || !keywords?.all?.length) {
       return { tailoredCV: cvText, injectedKeywords: [], timing: 0, stats: {}, uniqueHash: '' };
     }
@@ -531,7 +527,7 @@
     const cvLower = cvText.toLowerCase();
     const missing = (keywords.workExperience || keywords.all.slice(0, 15))
       .filter(kw => !cvLower.includes(kw.toLowerCase()));
-    
+
     let tailoredCV = cvText;
     let injected = [];
 
@@ -557,7 +553,7 @@
 
     const timing = performance.now() - startTime;
     console.log(`[TurboPipeline] CV tailored in ${timing.toFixed(0)}ms (target: ${TIMING_TARGETS.TAILOR_CV}ms)`);
-    
+
     return { 
       tailoredCV, 
       originalCV: cvText,
@@ -579,21 +575,22 @@
     const expStart = expMatch.index + expMatch[0].length;
     const nextSectionMatch = /^(SKILLS|EDUCATION|CERTIFICATIONS|PROJECTS)[\s:]*$/im.exec(tailoredCV.substring(expStart));
     const expEnd = nextSectionMatch ? expStart + nextSectionMatch.index : tailoredCV.length;
-    
+
     let experienceSection = tailoredCV.substring(expStart, expEnd);
     const lines = experienceSection.split('\n');
     let keywordIndex = 0;
-    
+
     const patterns = [
       ', incorporating {} principles',
       ' with focus on {}',
       ', leveraging {}',
-      ' utilizing {} methodologies',
+      ' utilising {} methodologies',
       ' through {} implementation'
     ];
 
     const modifiedLines = lines.map(line => {
       const trimmed = line.trim();
+      // CRITICAL: Only modify bullet lines, never headers
       if (!(trimmed.startsWith('-') || trimmed.startsWith('•') || trimmed.startsWith('*'))) {
         return line;
       }
@@ -608,24 +605,24 @@
         }
         keywordIndex++;
       }
-      
+
       if (toInject.length === 0) return line;
 
       const pattern = patterns[Math.floor(Math.random() * patterns.length)];
       let bulletContent = trimmed.replace(/^[-•*]\s*/, '');
-      
+
       const injection = toInject.length === 1 
         ? pattern.replace('{}', toInject[0])
         : pattern.replace('{}', toInject.slice(0, -1).join(', ') + ' and ' + toInject.slice(-1));
-      
+
       if (bulletContent.endsWith('.')) {
         bulletContent = bulletContent.slice(0, -1) + injection + '.';
       } else {
         bulletContent = bulletContent + injection;
       }
-      
+
       injected.push(...toInject);
-      return `- ${bulletContent}`;
+      return `• ${bulletContent}`;
     });
 
     const modifiedExperience = modifiedLines.join('\n');
@@ -640,13 +637,13 @@
   async function executeTurboPipeline(jobInfo, candidateData, baseCV, options = {}) {
     const pipelineStart = performance.now();
     const timings = {};
-    
+
     console.log('[TurboPipeline] ⚡ Starting <50s ULTRA-FAST pipeline for:', jobInfo?.title || 'Unknown Job');
-    
+
     // PHASE 1: Extract keywords (≤10ms cached, ≤20ms fresh)
     const extractStart = performance.now();
     const jdText = jobInfo?.description || '';
-    
+
     // PARALLEL: Start all independent operations simultaneously
     const [keywordsResult, candidatePrepped] = await Promise.all([
       turboExtractKeywords(jdText, {
@@ -655,7 +652,7 @@
       }),
       Promise.resolve(candidateData) // Pre-validate candidate data
     ]);
-    
+
     timings.extraction = performance.now() - extractStart;
     logPerf('phase1_extract', timings.extraction);
 
@@ -675,7 +672,7 @@
     const distStart = performance.now();
     let finalCV = tailorResult.tailoredCV;
     let distributionStats = {};
-    
+
     if (keywordsResult.highPriority?.length > 0) {
       const distResult = distributeHighPriorityKeywords(finalCV, keywordsResult.highPriority, {
         maxBulletsPerRole: 8,
@@ -706,21 +703,21 @@
           },
           candidateData
         );
-        
+
         cvPDF = {
           blob: atsPackage.cv,
           base64: atsPackage.cvBase64,
           filename: atsPackage.cvFilename
         };
-        
+
         coverPDF = {
           blob: atsPackage.cover,
           base64: atsPackage.coverBase64,
           filename: atsPackage.coverFilename
         };
-        
+
         matchScore = atsPackage.matchScore;
-        
+
         console.log(`[TurboPipeline] ✅ PDFs generated: CV=${atsPackage.cvFilename}, Cover=${atsPackage.coverFilename}`);
       } catch (e) {
         console.error('[TurboPipeline] OpenResume generation failed:', e);
@@ -730,7 +727,7 @@
 
     const totalTime = performance.now() - pipelineStart;
     timings.total = totalTime;
-    
+
     const meetsTarget = totalTime <= TIMING_TARGETS.TOTAL;
 
     console.log(`[TurboPipeline] ⚡ ULTRA-FAST Complete:
