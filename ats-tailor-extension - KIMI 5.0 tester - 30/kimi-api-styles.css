@@ -1,0 +1,191 @@
+/* Kimi K2 API Integration Styles */
+
+/* Kimi API Key Section */
+.kimi-api-section {
+  margin-top: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(255, 107, 53, 0.1) 0%, rgba(255, 107, 53, 0.05) 100%);
+  border: 1px solid rgba(255, 107, 53, 0.2);
+  border-radius: var(--radius-md);
+  animation: slideIn 0.3s ease-out;
+}
+
+.api-key-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.api-key-icon {
+  font-size: 14px;
+}
+
+.api-key-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.api-status {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+}
+
+.api-status.set {
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--success);
+}
+
+.api-status.missing {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--error);
+}
+
+.api-key-input-wrapper {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.api-key-input {
+  flex: 1;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: 'SF Mono', 'Monaco', monospace;
+  transition: border-color 0.2s ease;
+}
+
+.api-key-input:focus {
+  outline: none;
+  border-color: var(--kimi-color);
+  box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.2);
+}
+
+.api-key-input::placeholder {
+  color: var(--text-muted);
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.api-key-help {
+  font-size: 9px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+
+.api-key-help a {
+  color: var(--kimi-color);
+  text-decoration: none;
+}
+
+.api-key-help a:hover {
+  text-decoration: underline;
+}
+
+.api-key-benefits {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.benefit-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.benefit-icon {
+  font-size: 12px;
+}
+
+.benefit-text {
+  font-size: 10px;
+}
+
+/* Time estimate styling */
+.btn-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+/* Pipeline step updates */
+.pipeline-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+  transition: all 0.3s ease;
+}
+
+.pipeline-step.active {
+  color: var(--kimi-color);
+  font-weight: 500;
+}
+
+.pipeline-step.completed {
+  color: var(--success);
+}
+
+.step-icon {
+  font-size: 12px;
+  width: 16px;
+  text-align: center;
+}
+
+/* Animation for slide in */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Enhanced button styles for Kimi */
+.btn-accent {
+  background: linear-gradient(135deg, var(--kimi-color), #ff8c4a);
+  color: white;
+  border: none;
+}
+
+.btn-accent:hover {
+  background: linear-gradient(135deg, #ff5a2b, #ff7a3a);
+  transform: translateY(-1px);
+}
+
+/* Kimi provider specific styles */
+.ai-provider-panel[data-provider="kimi"] {
+  border-color: rgba(255, 107, 53, 0.3);
+}
+
+/* Status indicator for Kimi */
+.status-indicator[data-provider="kimi"] .status-dot {
+  background: var(--kimi-color);
+  box-shadow: 0 0 8px var(--kimi-color);
+}
+
+/* Progress bar Kimi color */
+.progress-fill.kimi {
+  background: linear-gradient(90deg, var(--kimi-color), #ff8c4a);
+}
+
+/* Match gauge Kimi color */
+.gauge-progress.kimi {
+  stroke: var(--kimi-color);
+}

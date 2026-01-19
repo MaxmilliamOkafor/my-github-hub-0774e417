@@ -5,12 +5,12 @@
   'use strict';
 
   const ResumeBuilderImproved = {
-    
+
     // ============ MAIN BUILD METHOD ============
     async buildResume(candidateData, keywords, options = {}) {
       const startTime = performance.now();
       const { includeAllKeywords = true, format = 'pdf' } = options;
-      
+
       if (!candidateData) {
         console.warn('[ResumeBuilderImproved] No candidate data provided');
         return null;
@@ -20,10 +20,10 @@
 
       // Extract all keywords
       const allKeywords = this.extractAllKeywords(keywords);
-      
+
       // Build structured resume data
       const resumeData = this.buildResumeData(candidateData, allKeywords);
-      
+
       // Generate tailored content string
       const tailoredContent = this.generateTailoredContent(resumeData);
 
@@ -59,16 +59,16 @@
     // ============ EXTRACT ALL KEYWORDS ============
     extractAllKeywords(keywords) {
       if (!keywords) return [];
-      
+
       const allKw = new Set();
-      
+
       // Add from all priority levels
       if (keywords.highPriority) keywords.highPriority.forEach(k => allKw.add(k));
       if (keywords.mediumPriority) keywords.mediumPriority.forEach(k => allKw.add(k));
       if (keywords.lowPriority) keywords.lowPriority.forEach(k => allKw.add(k));
       if (keywords.all) keywords.all.forEach(k => allKw.add(k));
       if (keywords.workExperience) keywords.workExperience.forEach(k => allKw.add(k));
-      
+
       return [...allKw];
     },
 
@@ -92,7 +92,7 @@
       const location = this.cleanLocation(data.city || data.location || '');
       const linkedin = data.linkedin || '';
       const github = data.github || '';
-      
+
       return {
         name: name || 'Applicant',
         phone,
@@ -106,23 +106,23 @@
     // ============ FORMAT PHONE FOR ATS ============
     formatPhoneForATS(phone) {
       if (!phone) return '';
-      
+
       let cleaned = phone.replace(/[^\d+]/g, '');
-      
+
       if (cleaned.startsWith('+')) {
-        const match = cleaned.match(/^\+(\d{1,3})(\d+)$/);
+        const match = cleaned.match(/^(\+\d{1,3})(\d+)$/);
         if (match) {
           return `+${match[1]} ${match[2]}`;
         }
       }
-      
+
       return phone;
     },
 
     // ============ CLEAN LOCATION ============
     cleanLocation(location) {
       if (!location) return '';
-      
+
       return location
         .replace(/\b(remote|work from home|wfh|virtual|fully remote)\b/gi, '')
         .replace(/\s*[\(\[]?\s*(remote|wfh|virtual)\s*[\)\]]?\s*/gi, '')
@@ -136,15 +136,15 @@
     // ============ BUILD SUMMARY SECTION ============
     buildSummarySection(data, keywords) {
       let summary = data.summary || data.professionalSummary || data.profile || '';
-      
+
       // Ensure keywords is always an array
       const keywordArray = Array.isArray(keywords) ? keywords : (keywords?.all || []);
-      
+
       // Inject top 5 keywords into summary if not present
       if (summary && keywordArray.length > 0) {
         const summaryLower = summary.toLowerCase();
         const toInject = keywordArray.slice(0, 5).filter(kw => !summaryLower.includes(kw.toLowerCase()));
-        
+
         if (toInject.length > 0) {
           const injection = `. Expertise includes ${toInject.join(', ')}`;
           if (summary.endsWith('.')) {
@@ -154,7 +154,7 @@
           }
         }
       }
-      
+
       return summary;
     },
 
@@ -178,7 +178,7 @@
         // READ-ONLY from profile - NEVER modify these fields
         const company = (job.company || '').trim();
         const title = (job.title || '').trim();
-        
+
         // Build dates - normalise to "YYYY – YYYY" format with en dash and spaces
         let dates = job.dates || '';
         if (!dates && (job.startDate || job.endDate)) {
@@ -186,35 +186,35 @@
           const end = job.endDate || 'Present';
           dates = start ? `${start} - ${end}` : end;
         }
-        
+
         // Normalise date format: replace hyphens with en dash, ensure spaces around it
         const normalisedDates = dates ? String(dates)
           .replace(/--/g, '–')           // double hyphen to en dash
           .replace(/-/g, '–')            // single hyphen to en dash  
           .replace(/\s*–\s*/g, ' – ')    // ensure spaces around en dash
           : '';
-        
+
         const location = job.location || '';
-        
+
         // Get bullets from profile - preserve original content
         let bullets = job.bullets || job.achievements || job.responsibilities || [];
         if (typeof bullets === 'string') bullets = bullets.split('\n').filter(b => b.trim());
-        
+
         // Inject keywords into bullets - ONLY append, never rewrite
         const enhancedBullets = bullets.slice(0, maxBulletsPerRole).map((bullet, idx) => {
           // Clean bullet text
           let text = (bullet || '').replace(/^\s*[-•*]\s*/, '').trim();
           if (!text) return '';
-          
+
           // Only enhance first 3 bullets per role
           if (idx >= 3) {
             if (!text.endsWith('.')) text += '.';
             return text;
           }
-          
+
           const bulletLower = text.toLowerCase();
           const toInject = [];
-          
+
           // Find 1-2 keywords not in bullet and not already used
           for (let i = 0; i < keywordArray.length && toInject.length < 2; i++) {
             const kw = keywordArray[i];
@@ -225,12 +225,12 @@
               usedKeywords.add(kwLower);
             }
           }
-          
+
           if (toInject.length > 0) {
             // UK spelling for injection phrases
             const phrases = ['leveraging', 'utilising', 'through', 'with', 'via'];
             const phrase = phrases[Math.floor(Math.random() * phrases.length)];
-            
+
             if (text.endsWith('.')) {
               text = text.slice(0, -1) + `, ${phrase} ${toInject.join(' and ')}.`;
             } else {
@@ -239,7 +239,7 @@
           } else {
             if (!text.endsWith('.')) text += '.';
           }
-          
+
           return text;
         }).filter(Boolean);
 
@@ -258,13 +258,13 @@
     buildEducationSection(data) {
       const education = data.education || [];
       if (!Array.isArray(education) || education.length === 0) return [];
-      
+
       return education.map(edu => {
         const institution = edu.institution || edu.school || edu.university || '';
         const degree = edu.degree || '';
         // REMOVED: date to prevent age bias
         const gpa = edu.gpa ? `GPA: ${edu.gpa}` : '';
-        
+
         return {
           institution,
           degree,
@@ -278,10 +278,10 @@
     buildSkillsSection(data, keywords) {
       const skills = data.skills || [];
       const skillSet = new Set(skills.map(s => s.toLowerCase()));
-      
+
       // Ensure keywords is always an array
       const keywordArray = Array.isArray(keywords) ? keywords : (keywords?.all || []);
-      
+
       // Add keywords not already in skills
       keywordArray.forEach(kw => {
         if (!skillSet.has(kw.toLowerCase())) {
@@ -289,7 +289,7 @@
           skillSet.add(kw.toLowerCase());
         }
       });
-      
+
       // Format skills: comma-separated, max 20
       return this.formatSkills(skills.slice(0, 20));
     },
@@ -321,21 +321,22 @@
     buildCertificationsSection(data) {
       const certs = data.certifications || [];
       if (!Array.isArray(certs) || certs.length === 0) return '';
-      
+
       return certs.map(c => typeof c === 'string' ? c : c.name || c.title || '')
                   .filter(Boolean)
                   .join(', ');
     },
 
     // ============ GENERATE TAILORED CONTENT STRING ============
-    // PERMANENT FIX: Two-line header format with en dash, NO PIPE
+    // LAYOUT: 
     //   Line 1: Company
-    //   Line 2: Title – YYYY – YYYY (en dash separator)
+    //   Line 2: Title – YYYY – YYYY (using en dash, no pipe separator)
+    // Used for parsing by cv-formatter-perfect
     generateTailoredContent(resumeData) {
       const sections = [];
-      
+
       // Contact is handled by formatter
-      
+
       // Summary
       if (resumeData.summary) {
         sections.push('PROFESSIONAL SUMMARY');
@@ -345,14 +346,14 @@
 
       // Experience - Two-line header format:
       //   Line 1: Company
-      //   Line 2: Title – YYYY – YYYY (en dash, NO pipe separator)
-      // PERMANENT FIX: Use en dash separator, not pipe
+      //   Line 2: Title – YYYY – YYYY (en dash with spaces, no pipe)
+      // Bullets with proper • character
       if (resumeData.experience.length > 0) {
         sections.push('WORK EXPERIENCE');
         resumeData.experience.forEach(job => {
-          // Line 1: Company (bold in HTML)
+          // Line 1: Company
           sections.push(job.company || '');
-          // Line 2: Title – YYYY – YYYY (en dash separator, NO pipe)
+          // Line 2: Title – YYYY – YYYY (no pipe separator)
           const titleLine = job.dates 
             ? `${job.title} – ${job.dates}`
             : job.title;
@@ -398,7 +399,7 @@
     // Bullets: Use proper ATS bullet points with <ul><li>
     generateLegacyHTML(resumeData) {
       const { contact, summary, experience, education, skills, certifications } = resumeData;
-      
+
       const escapeHtml = (str) => {
         if (!str) return '';
         return str.replace(/&/g, '&amp;')
@@ -426,7 +427,7 @@
     .contact { text-align: center; color: #333; margin-bottom: 16px; font-size: 10.5pt; }
     .section-title { font-size: 12pt; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #000; margin: 16px 0 8px 0; padding-bottom: 4px; }
     .section-content { margin-bottom: 12px; }
-    
+
     /* Job layout: Company on Line 1, Title + Dates on Line 2 */
     .job { margin-bottom: 16px; }
     .job-company { 
@@ -449,7 +450,7 @@
       font-size: 10pt;
       color: #333;
     }
-    
+
     /* ATS-friendly bullet list */
     .job-bullets {
       margin: 4px 0 0 20px;
@@ -468,12 +469,12 @@
     ${contact.phone ? `${escapeHtml(contact.phone)} | ` : ''}${escapeHtml(contact.email)}${contact.location ? ` | ${escapeHtml(contact.location)} | Open to relocation` : ''}
     ${contact.linkedin || contact.github ? `<br>${[contact.linkedin, contact.github].filter(Boolean).map(l => escapeHtml(l)).join(' | ')}` : ''}
   </div>
-  
+
   ${summary ? `
   <div class="section-title">Professional Summary</div>
   <div class="section-content">${escapeHtml(summary)}</div>
   ` : ''}
-  
+
   ${experience.length > 0 ? `
   <div class="section-title">Work Experience</div>
   ${experience.map(job => `
@@ -491,26 +492,26 @@
   </div>
   `).join('')}
   ` : ''}
-  
+
   ${education.length > 0 ? `
   <div class="section-title">Education</div>
   ${education.map(edu => `
   <div>${[edu.degree, edu.institution, edu.gpa].filter(Boolean).map(f => escapeHtml(f)).join(' | ')}</div>
   `).join('')}
   ` : ''}
-  
+
   ${education.length > 0 ? `
   <div class="section-title">Education</div>
   ${education.map(edu => `
   <div>${[edu.degree, edu.institution, edu.gpa].filter(Boolean).map(f => escapeHtml(f)).join(' | ')}</div>
   `).join('')}
   ` : ''}
-  
+
   ${skills ? `
   <div class="section-title">Skills</div>
   <div class="section-content">${escapeHtml(skills)}</div>
   ` : ''}
-  
+
   ${certifications ? `
   <div class="section-title">Certifications</div>
   <div class="section-content">${escapeHtml(certifications)}</div>
@@ -550,7 +551,7 @@
         experience.forEach(job => {
           // Line 1: Company
           lines.push(job.company);
-          // Line 2: Title – YYYY – YYYY
+          // Line 2: Title – YYYY – YYYY (no pipe)
           lines.push(job.titleLine || job.title);
           job.bullets.forEach(bullet => {
             lines.push(`• ${bullet}`);

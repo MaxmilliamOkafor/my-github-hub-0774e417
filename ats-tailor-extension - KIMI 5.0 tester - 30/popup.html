@@ -87,6 +87,34 @@
           <span class="ai-model-label" id="activeModelLabel">kimi-k2-0711-preview</span>
           <span class="ai-saved-indicator hidden" id="aiSettingsSaved">✓</span>
         </div>
+        
+        <!-- Kimi API Key Section -->
+        <div class="kimi-api-section" id="kimiApiSection">
+          <div class="api-key-header">
+            <span class="api-key-icon">🔑</span>
+            <span class="api-key-title">Kimi K2 API Key</span>
+            <span class="api-status missing" id="kimiKeyStatus">⚠️ API Key Required</span>
+          </div>
+          <div class="api-key-input-wrapper">
+            <input type="password" id="kimiAPIKeyInput" class="api-key-input" placeholder="sk-... (from platform.moonshot.cn)">
+            <button id="saveKimiKey" class="btn btn-small btn-accent" title="Save API Key">💾</button>
+          </div>
+          <p class="api-key-help">Get your API key from <a href="https://platform.moonshot.cn" target="_blank">platform.moonshot.cn</a></p>
+          <div class="api-key-benefits">
+            <div class="benefit-item">
+              <span class="benefit-icon">⚡</span>
+              <span class="benefit-text">40-50s generation time (direct API)</span>
+            </div>
+            <div class="benefit-item">
+              <span class="benefit-icon">🎯</span>
+              <span class="benefit-text">95%+ ATS match score</span>
+            </div>
+            <div class="benefit-item">
+              <span class="benefit-icon">🇬🇧</span>
+              <span class="benefit-text">UK English spelling</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Settings Panel -->
@@ -624,6 +652,6 @@
     <div class="toast-container" id="toastContainer"></div>
   </div>
 
-  <script src="popup.js"></script>
+  <script src="popup-improved.js"></script>
 </body>
 </html>

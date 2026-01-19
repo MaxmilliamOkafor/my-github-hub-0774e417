@@ -2086,3 +2086,155 @@ body::-webkit-scrollbar-thumb {
 .toggle-switch input:checked + .toggle-slider:before {
   transform: translateX(18px);
 }
+
+/* ============ KIMI API KEY SECTION ============ */
+.kimi-api-section {
+  margin-top: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(255, 107, 53, 0.1) 0%, rgba(255, 107, 53, 0.05) 100%);
+  border: 1px solid rgba(255, 107, 53, 0.2);
+  border-radius: var(--radius-md);
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.api-key-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.api-key-icon {
+  font-size: 14px;
+}
+
+.api-key-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.api-status {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+}
+
+.api-status.set {
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--success);
+}
+
+.api-status.missing {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--error);
+}
+
+.api-key-input-wrapper {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.api-key-input {
+  flex: 1;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: 'SF Mono', 'Monaco', monospace;
+  transition: border-color 0.2s ease;
+}
+
+.api-key-input:focus {
+  outline: none;
+  border-color: var(--kimi-color);
+  box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.2);
+}
+
+.api-key-input::placeholder {
+  color: var(--text-muted);
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.api-key-help {
+  font-size: 9px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+
+.api-key-help a {
+  color: var(--kimi-color);
+  text-decoration: none;
+}
+
+.api-key-help a:hover {
+  text-decoration: underline;
+}
+
+.api-key-benefits {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.benefit-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.benefit-icon {
+  font-size: 12px;
+}
+
+.benefit-text {
+  font-size: 10px;
+}
+
+/* Time estimate styling */
+.btn-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+/* Pipeline step updates */
+.pipeline-step.completed {
+  color: var(--success);
+}
+
+.pipeline-step.completed .step-icon {
+  color: var(--success);
+}
+
+.pipeline-step.active {
+  color: var(--kimi-color);
+}
+
+.pipeline-step.active .step-icon {
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
