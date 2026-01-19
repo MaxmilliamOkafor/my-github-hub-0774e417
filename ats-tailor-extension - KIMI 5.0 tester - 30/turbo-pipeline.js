@@ -261,14 +261,18 @@
       const line = lines[i];
       const trimmed = line.trim();
       
-      // Detect role header (Company | Title | Date or similar patterns)
-      // PROTECT HEADERS: Never modify lines containing company names and pipe separators
+      // Detect role header (Company or Title – Date patterns)
+      // PERMANENT FIX: PROTECT ALL HEADERS - never modify lines containing company names, dates, or en dashes
       const lineHasPipe = trimmed.includes('|');
+      const lineHasEnDash = trimmed.includes('–');
       const lineHasCompany = PROTECTED_COMPANIES.some(c => trimmed.toLowerCase().includes(c));
       const isRoleHeader = (lineHasPipe && lineHasCompany) ||
-                          /^[A-Z][A-Za-z\s&.,]+\s*\|/.test(trimmed) || 
+                          (lineHasEnDash && /\d{4}/.test(trimmed)) ||  // Title – YYYY – YYYY format
+                          /^[A-Z][A-Za-z\s&.,()]+$/.test(trimmed) ||   // Company name only line
+                          /^[A-Z][A-Za-z\s&.,]+\s*[–|]/.test(trimmed) || 
                           /^(Meta|Solim|Accenture|Citigroup|Citi|Google|Amazon|Microsoft|Apple|Facebook|Netflix|Stripe|Salesforce|IBM|Oracle|Adobe)/i.test(trimmed) ||
-                          /^\d{4}\s*[-–]\s*(Present|\d{4})/i.test(trimmed); // Date lines
+                          /^\d{4}\s*[-–]\s*(Present|\d{4})/i.test(trimmed) || // Date lines
+                          /^.+\s+–\s+\d{4}\s*–\s*(Present|\d{4})$/i.test(trimmed); // Title – 2023 – Present format
       
       if (isRoleHeader) {
         roleIndex++;

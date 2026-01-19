@@ -328,10 +328,9 @@
     },
 
     // ============ GENERATE TAILORED CONTENT STRING ============
-    // LAYOUT: 
+    // PERMANENT FIX: Two-line header format with en dash, NO PIPE
     //   Line 1: Company
-    //   Line 2: Title | YYYY – YYYY
-    // Used for parsing by cv-formatter-perfect
+    //   Line 2: Title – YYYY – YYYY (en dash separator)
     generateTailoredContent(resumeData) {
       const sections = [];
       
@@ -346,16 +345,16 @@
 
       // Experience - Two-line header format:
       //   Line 1: Company
-      //   Line 2: Title | YYYY – YYYY
-      // Bullets with proper • character
+      //   Line 2: Title – YYYY – YYYY (en dash, NO pipe separator)
+      // PERMANENT FIX: Use en dash separator, not pipe
       if (resumeData.experience.length > 0) {
         sections.push('WORK EXPERIENCE');
         resumeData.experience.forEach(job => {
-          // Line 1: Company
+          // Line 1: Company (bold in HTML)
           sections.push(job.company || '');
-          // Line 2: Title | Dates (pipe for parsing, displayed with flex)
+          // Line 2: Title – YYYY – YYYY (en dash separator, NO pipe)
           const titleLine = job.dates 
-            ? `${job.title} | ${job.dates}`
+            ? `${job.title} – ${job.dates}`
             : job.title;
           sections.push(titleLine);
           job.bullets.forEach(bullet => {
