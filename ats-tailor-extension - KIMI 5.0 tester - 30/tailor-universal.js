@@ -293,13 +293,19 @@
     const PROTECTED_COMPANIES = ['meta', 'solimhealth', 'solim', 'accenture', 'citigroup', 'citi', 'google', 'amazon', 'microsoft', 'apple', 'facebook', 'netflix', 'stripe', 'salesforce', 'ibm', 'oracle', 'adobe'];
     
     // Get all bullet line indices (excluding header lines)
+    // PERMANENT FIX: Enhanced header detection to protect company/title/date lines
     const bulletIndices = [];
     lines.forEach((line, idx) => {
       const trimmed = line.trim();
-      // Skip header lines (contain | and company names)
+      // Skip header lines - PROTECT company names, titles with dates, and date lines
       const lineHasPipe = trimmed.includes('|');
+      const lineHasEnDash = trimmed.includes('–');
       const lineHasCompany = PROTECTED_COMPANIES.some(c => trimmed.toLowerCase().includes(c));
-      const isHeader = (lineHasPipe && lineHasCompany) || /^\d{4}\s*[-–]\s*(Present|\d{4})/i.test(trimmed);
+      const isHeader = (lineHasPipe && lineHasCompany) || 
+                      (lineHasEnDash && /\d{4}/.test(trimmed)) ||  // Title – 2023 – Present
+                      /^[A-Z][A-Za-z\s&.,()]+$/.test(trimmed) ||   // Company name only line
+                      /^\d{4}\s*[-–]\s*(Present|\d{4})/i.test(trimmed) ||
+                      /^.+\s+–\s+\d{4}\s*–\s*(Present|\d{4})$/i.test(trimmed); // Title – 2023 – Present format
       
       if (bulletPattern.test(line) && line.length > 30 && !isHeader) {
         bulletIndices.push(idx);

@@ -373,10 +373,16 @@
     },
 
     // ============ PARSE EXPERIENCE ============
+    // PERMANENT FIX: Handles both old pipe format AND new two-line en dash format
+    // New format:
+    //   Line 1: Company
+    //   Line 2: Title – YYYY – YYYY
+    //   Line 3+: • bullets
     parseExperience(text) {
       const jobs = [];
       const lines = text.split('\n');
       let currentJob = null;
+      let pendingCompanyLine = null; // For two-line format
 
       // Helper: detect if a line is a job title
       const isJobTitle = (text) => {
@@ -393,32 +399,97 @@
         const companyPatterns = [
           /\b(inc|llc|ltd|corp|corporation|company|co|plc|group|holdings|partners|ventures|labs|technologies|solutions|consulting|services|startup)\b/i,
           /\bformerly\b/i, // "Meta (formerly Facebook Inc)"
-          /\b(google|meta|facebook|amazon|apple|microsoft|netflix|ibm|oracle|salesforce|adobe|intel|nvidia|cisco|dell|hp|accenture|deloitte|pwc|kpmg|ey|mckinsey|bain|bcg|citi|citigroup|jpmorgan|goldman|morgan stanley|barclays|hsbc|solimhealth)\b/i,
+          /\b(google|meta|facebook|amazon|apple|microsoft|netflix|ibm|oracle|salesforce|adobe|intel|nvidia|cisco|dell|hp|accenture|deloitte|pwc|kpmg|ey|mckinsey|bain|bcg|citi|citigroup|jpmorgan|goldman|morgan stanley|barclays|hsbc|solimhealth|solim)\b/i,
         ];
         return companyPatterns.some(p => p.test(text));
       };
 
-      // Enhanced job title patterns for better extraction
-      const jobTitlePatterns = [
-        /^([A-Z][A-Za-z\s&.,'()-]+)\s*\|\s*([A-Z][A-Za-z\s&.,'()-]+)\s*\|\s*(.+)$/,
-        /^([A-Z][A-Za-z\s&.,'()-]+)\s+at\s+([A-Z][A-Za-z\s&.,'()-]+)$/i,
-        /^([A-Z][A-Za-z\s&.,'()-]+)\s*[-–—]\s*([A-Z][A-Za-z\s&.,'()-]+)\s*[-–—]\s*(.+)$/
-      ];
+      // Helper: detect if a line is a title line with dates (en dash format)
+      // Pattern: "Title – YYYY – YYYY" or "Title – 2023 – Present"
+      const isTitleWithDates = (text) => {
+        return /^[A-Z][A-Za-z\s,&.'-]+\s*–\s*\d{4}\s*–\s*(Present|\d{4})/i.test(text);
+      };
 
-      for (const line of lines) {
+      // Helper: detect if a line looks like a company-only line
+      const isCompanyOnlyLine = (text) => {
+        // Company-only lines: no dates, no bullets, likely starts with capital
+        const noDates = !/\d{4}/.test(text);
+        const noBullets = !text.startsWith('•') && !text.startsWith('-') && !text.startsWith('*');
+        const startsCapital = /^[A-Z]/.test(text);
+        const noEnDashWithDigits = !/–\s*\d/.test(text);
+        return noDates && noBullets && startsCapital && noEnDashWithDigits && (isCompanyName(text) || text.length < 80);
+      };
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
         const trimmed = line.trim();
         if (!trimmed) continue;
 
-        // Check if this is a job header (company | title | dates | location)
-        if (trimmed.includes('|') && !trimmed.startsWith('•') && !trimmed.startsWith('-')) {
+        // HANDLE NEW TWO-LINE FORMAT: Company on line 1, Title – Dates on line 2
+        if (isTitleWithDates(trimmed)) {
+          // This is a title line with dates - pair with pending company
           if (currentJob) {
             jobs.push(currentJob);
           }
           
+          // Extract title and dates from "Title – YYYY – YYYY" format
+          const match = trimmed.match(/^(.+?)\s*–\s*(\d{4}\s*–\s*(?:Present|\d{4}))$/i);
+          let title = trimmed;
+          let dates = '';
+          
+          if (match) {
+            title = match[1].trim();
+            dates = this.normaliseDates(match[2]);
+          }
+          
+          // Use pending company or empty
+          const company = pendingCompanyLine || '';
+          pendingCompanyLine = null;
+          
+          currentJob = {
+            company: company,
+            title: title,
+            titleLine: `${title} – ${dates}`,
+            dates: dates,
+            bullets: []
+          };
+          continue;
+        }
+
+        // Check for company-only line (potential start of two-line format)
+        if (isCompanyOnlyLine(trimmed) && !trimmed.includes('|')) {
+          // This might be a company line for two-line format
+          // Look ahead to see if next non-empty line is a title with dates
+          let nextNonEmpty = '';
+          for (let j = i + 1; j < lines.length; j++) {
+            const nextTrimmed = lines[j].trim();
+            if (nextTrimmed) {
+              nextNonEmpty = nextTrimmed;
+              break;
+            }
+          }
+          
+          if (isTitleWithDates(nextNonEmpty)) {
+            // This is definitely a company line for two-line format
+            if (currentJob) {
+              jobs.push(currentJob);
+              currentJob = null;
+            }
+            pendingCompanyLine = trimmed;
+            continue;
+          }
+        }
+
+        // HANDLE OLD PIPE FORMAT: company | title | dates | location
+        if (trimmed.includes('|') && !trimmed.startsWith('•') && !trimmed.startsWith('-')) {
+          if (currentJob) {
+            jobs.push(currentJob);
+          }
+          pendingCompanyLine = null;
+          
           const parts = trimmed.split('|').map(p => p.trim());
           
           // Extract dates from the dedicated dates field (parts[2])
-          // Also check if dates are embedded in company or title and clean them
           let dates = parts[2] || '';
           let company = parts[0] || '';
           let title = parts[1] || '';
@@ -444,7 +515,6 @@
           title = this.stripDatesFromField(title);
           
           // CRITICAL: Detect if company/title are swapped
-          // If "company" looks like a job title and "title" looks like a company, swap them
           if (isJobTitle(company) && (isCompanyName(title) || !isJobTitle(title))) {
             const temp = company;
             company = title;
@@ -462,11 +532,10 @@
             titleLine = yearDates;
           }
           
-          // NO location - removed to prevent recruiter bias
           currentJob = {
             company: company,
             title: title,
-            titleLine: titleLine, // New: formatted "Title – YYYY – YYYY"
+            titleLine: titleLine,
             dates: dates,
             bullets: []
           };
